@@ -1,0 +1,36 @@
+# Snakemake workflow configuration, inputs, outputs and cache
+.snakemake/
+profiles/
+software/
+resources/
+results/
+logs/
+benchmarks/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AI-assistants
+.claude/
+CLAUDE.md
+
+# Notes
+documents/
+
+# System
+.DS_Store
+*.tmp

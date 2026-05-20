@@ -1,0 +1,13 @@
+name: rg4detector
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - tensorflow=2.5.0
+  - keras
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - git
