@@ -43,7 +43,7 @@ def peek_format(path):
 # ---------------------------------------------------------------------------
 
 
-def stream_detection_blocks(path):
+def stream_detection(path):
     """
     Stream block-format detection CSV one transcript at a time.
 
@@ -65,116 +65,25 @@ def stream_detection_blocks(path):
     Yields (transcript_id, scores_array, positions_array) without loading
     the full file into memory. Peak memory: O(max_transcript_length).
     """
-    seq_num = 0
-    with open(path, newline="") as handle:
-        reader = csv.reader(handle)
-        header_row = None
-        for row in reader:
-            if not row or not any(cell.strip() for cell in row):
+    with open(path, newline="\n", encoding="utf-8") as handle:
+        header_line = None
+        for line in handle:
+            line = line.strip()
+            if not line:
                 continue
-            if header_row is None:
-                header_row = row
-            else:
-                score_row = row
-                seq_num += 1
 
-                transcript_id = header_row[0].strip()
-                if not transcript_id:
-                    transcript_id = f"sequence_{seq_num}"
+            if header_line is None:
+                header_line = line
+                continue
 
-                scores = np.array(
-                    [float(v) for v in (c.strip() for c in score_row[1:]) if v],
-                    dtype=np.float32,
-                )
-                nucleotides = [c.strip() for c in header_row[1:] if c.strip()]
-                length = min(len(nucleotides), len(scores)) if nucleotides else len(scores)
-                positions = np.arange(1, length + 1, dtype=np.int32)
-                scores = scores[:length]
+            header_fields = header_line.split(',')
 
-                yield transcript_id, scores, positions
-                header_row = None
+            transcript_id = header_fields[0].strip()
 
+            scores = np.fromstring(line.strip(","), sep=",", dtype=np.float32)
 
-
-def stream_detection_table(path, chunk_size=500_000):
-    """
-    Stream table-format detection CSV one transcript at a time using chunked reads.
-
-    File format (table format):
-        Standard CSV with a header row followed by one row per nucleotide position.
-        Required columns (case-insensitive, stripped; first match wins):
-          ID column:    sequence_id | transcript_id | name | id | seq_id
-          Position col: position | pos | nucleotide | nt
-          Score col:    score | prediction | rg4_score | value
-        Rows for the same transcript must be grouped (or will be reassembled
-        across chunk boundaries). Position values are used as-is (int32).
-
-        Example:
-            transcript_id,position,score
-            ENST00000001,1,0.12
-            ENST00000001,2,0.87
-            ENST00000002,1,0.55
-
-    Yields (transcript_id, scores_array, positions_array).
-    Peak memory: O(chunk_size + max_transcript_length).
-    """
-    id_candidates    = ["sequence_id", "transcript_id", "name", "id", "seq_id"]
-    pos_candidates   = ["position", "pos", "nucleotide", "nt"]
-    score_candidates = ["score", "prediction", "rg4_score", "value"]
-
-    def resolve(candidates, cols):
-        for c in candidates:
-            if c in cols:
-                return c
-        raise ValueError(f"Cannot find column — expected one of {candidates}, got {list(cols)}")
-
-    header_df = pd.read_csv(path, nrows=0)
-    header_df.columns = header_df.columns.str.strip().str.lower()
-    id_col    = resolve(id_candidates,    header_df.columns)
-    pos_col   = resolve(pos_candidates,   header_df.columns)
-    score_col = resolve(score_candidates, header_df.columns)
-
-    pending_id     = None
-    pending_scores = []
-    pending_pos    = []
-
-    for chunk in pd.read_csv(path, chunksize=chunk_size,
-                              usecols=[id_col, pos_col, score_col],
-                              dtype={score_col: np.float32, pos_col: np.int32}):
-        chunk.columns = chunk.columns.str.strip().str.lower()
-        chunk = chunk.rename(columns={id_col: "transcript_id",
-                                      pos_col: "position",
-                                      score_col: "score"})
-
-        for tx_id, group in chunk.groupby("transcript_id", sort=False):
-            group = group.sort_values("position")
-            scores = group["score"].values
-            positions = group["position"].values
-
-            if tx_id == pending_id:
-                pending_scores.append(scores)
-                pending_pos.append(positions)
-            else:
-                if pending_id is not None:
-                    yield pending_id, np.concatenate(pending_scores), np.concatenate(pending_pos)
-
-                pending_id     = tx_id
-                pending_scores = [scores]
-                pending_pos    = [positions]
-
-    if pending_id is not None:
-        yield pending_id, np.concatenate(pending_scores), np.concatenate(pending_pos)
-
-
-def stream_detection(path):
-    """
-    Yield (transcript_id, scores, positions) one transcript at a time.
-    Automatically selects block or table streaming path.
-    """
-    if peek_format(path):
-        yield from stream_detection_blocks(path)
-    else:
-        yield from stream_detection_table(path)
+            yield transcript_id, scores
+            header_line = None
 
 
 # ---------------------------------------------------------------------------
@@ -190,4 +99,35 @@ def load_annotation(path):
         return None
     df = pd.read_csv(path, sep="\t", header=None,
                      names=["transcript_id", "start", "end", "feature"])
+    return df
+
+# ---------------------------------------------------------------------------
+# Processing and summarization
+# ---------------------------------------------------------------------------
+def count_peaks_from_file(file_path: str, th: float = 1.56) -> pd.DataFrame:
+    """
+    Finds and counts peaks above a given threshold for each transcript in the detection file.
+    Returns a DataFrame with columns "transcript_id" and "peak_count".
+
+    Args:
+        file_path: Path to the detection CSV file.
+        th: Threshold for peak detection (default: 1.56).
+    
+    Returns:
+        pd.DataFrame: A DataFrame with columns "transcript_id" and "peak_count".
+    """
+    tx_ids = []
+    peak_counts = []
+
+    for transcript_id, scores in stream_detection(file_path):
+        scores_array = np.array(scores)
+        peaks, _ = find_peaks(scores_array, height=th)
+        peak_count = len(peaks)
+        tx_ids.append(transcript_id)
+        peak_counts.append(peak_count)
+
+    df = pd.DataFrame({
+        "transcript_id": tx_ids,
+        "peak_count": peak_counts
+    })
     return df
