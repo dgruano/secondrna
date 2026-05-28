@@ -3,7 +3,7 @@ BATCH_SIZE = config.get("batch_size", 1000)  # 50 for testing, 1000 for producti
 
 # Global wildcard constraints
 wildcard_constraints:
-    sample="[a-zA-Z0-9_\-\.]+"  # Disallow forward slashes
+    sample="[a-zA-Z0-9_\\-\\.]+"  # Disallow forward slashes
 
 def calculate_memory_for_batch(batch_size):
     """
@@ -33,7 +33,7 @@ def calculate_runtime_for_batch(batch_size):
       - Base time: 5 minutes (for setup and overhead)
     """
     base_time = 5  # minutes
-    time_per_seq = 20 / 1000  # minutes per sequence
+    time_per_seq = 40 / 1000  # minutes per sequence (twice the time to be conservative)
     total_time = int(base_time + (batch_size * time_per_seq))
     return total_time
 
@@ -149,9 +149,9 @@ rule rg4_predict_batch:
     conda:
         "test_rg4"
     resources:
-        runtime=lambda wc: calculate_runtime_for_batch(BATCH_SIZE),  # Scale runtime with batch size (e.g., 20 min per 1000 sequences)
+        runtime=120,
         mem_mb=lambda wc: calculate_memory_for_batch(BATCH_SIZE),
-        cpus_per_task=2
+        cpus_per_task=1
     benchmark:
         "benchmarks/{sample}/predict_batch_{batch_id}.tsv"
     shell:
@@ -183,9 +183,9 @@ rule rg4_detect_batch:
     conda:
         "test_rg4"
     resources:
-        runtime=lambda wc: calculate_runtime_for_batch(BATCH_SIZE),  # Scale runtime with batch size (e.g., 20 min per 1000 sequences)
+        runtime=120,
         mem_mb=lambda wc: calculate_memory_for_batch(BATCH_SIZE),
-        cpus_per_task=2
+        cpus_per_task=1
     benchmark:
         "benchmarks/{sample}/detect_batch_{batch_id}.tsv"
     shell:
@@ -227,7 +227,7 @@ rule merge_rg4_predictions:
         "logs/{sample}/merge_predictions.log"
     resources:
         runtime=10,
-        mem_mb=4096,
+        mem_mb=1024*2,
         cpus_per_task=1
     benchmark:
         "benchmarks/{sample}/merge_predictions.tsv"
@@ -263,8 +263,8 @@ rule merge_rg4_detections:
     log:
         "logs/{sample}/merge_detections.log"
     resources:
-        runtime=10,
-        mem_mb=4096,
+        runtime=20,
+        mem_mb=1024*30,  # Detection files are larger, so we allow more memory for merging
         cpus_per_task=1
     benchmark:
         "benchmarks/{sample}/merge_detections.tsv"
