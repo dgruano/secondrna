@@ -1,0 +1,29 @@
+# Secondarna Pipeline Configuration
+# Default values for all configurable parameters
+
+# Batch Processing Parameters
+batch_size: 1000  # Sequences per batch for rG4detector
+
+# Summarization Parameters
+threshold_low: 1.0  # Score threshold for candidate rG4 peaks
+threshold_high: 2.0  # Score threshold for high-confidence rG4 peaks
+min_peak_prominence: 0.3  # Minimum peak prominence for peak calling
+min_peak_width: 20  # Minimum peak width in nucleotides
+annotation_file: null  # Optional BED file with feature annotations
+
+# Visualization Parameters
+viz_output_dir: "results/{sample}/viz"  # Output directory root for visualizations
+viz_plots: "distributions ranking details comparison"  # Plot types to generate
+viz_format: "both"  # Output format: static, interactive, or both
+viz_top_n: 20  # Number of top transcripts for ranking plots
+viz_metric: "top_peak_score"  # Ranking metric (top_peak_score, max_score, n_peaks_above_high, rg4_density_per_kb)
+viz_dpi: 300  # DPI for PNG files
+viz_figsize: "10x6"  # Figure size as "WxH"
+viz_class_col: "real"  # Column name for class labels
+viz_transcript_detail: null  # Single transcript ID for detail view
+viz_filter: null  # Filter string (e.g., "n_peaks_above_high > 0")
+
+# Execution Parameters
+profile: "profiles/default"  # SLURM configuration profile
+cores: 4  # CPU cores for local execution (when not using SLURM)
+max_jobs: 100  # Maximum concurrent SLURM jobs
