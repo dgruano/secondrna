@@ -34,6 +34,20 @@ class RG4SummaryLoader:
         "frac_above_high",
     }
 
+    COLUMN_ALIASES = {
+        "index": "transcript_id",
+        "top_peak_position_nt": "top_peak_position",
+        "top_peak_width_nt": "top_peak_width",
+    }
+
+    NUMERIC_COLUMNS = {
+        "mean_score", "max_score", "p95_score", "p90_score", "p99_score",
+        "top_peak_score", "top_peak_position", "top_peak_width",
+        "top_peak_prominence", "top_peak_area", "n_peaks_above_low",
+        "n_peaks_above_high", "rg4_density_per_kb", "frac_above_low",
+        "frac_above_high", "transcript_length_nt",
+    }
+
     @staticmethod
     def load(filepath: Union[str, Path]) -> pd.DataFrame:
         """Load CSV and validate required columns."""
@@ -41,6 +55,14 @@ class RG4SummaryLoader:
 
         # Normalize column names: strip whitespace, lowercase
         df.columns = df.columns.str.strip().str.lower()
+
+        # Apply column aliases to handle naming variations in the CSV
+        df.rename(columns=RG4SummaryLoader.COLUMN_ALIASES, inplace=True)
+
+        # Coerce expected numeric columns to avoid dtype object errors
+        for col in RG4SummaryLoader.NUMERIC_COLUMNS:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
         # Check for required columns
         missing = RG4SummaryLoader.EXPECTED_METRICS - set(df.columns)
