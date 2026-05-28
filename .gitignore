@@ -6,6 +6,7 @@ resources/
 results/
 logs/
 benchmarks/
+temp/
 
 # Python
 __pycache__/
@@ -27,9 +28,13 @@ venv/
 # AI-assistants
 .claude/
 CLAUDE.md
+.claudeignore
+.superpowers/
 
 # Notes
 documents/
+docs/
+TODO.md
 
 # System
 .DS_Store
