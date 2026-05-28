@@ -12,6 +12,7 @@ include: "workflow/rules/input.smk"
 include: "workflow/rules/rg4detector_batch.smk"
 #include: "workflow/rules/rg4detector.smk"
 include: "workflow/rules/utils.smk"
+include: "workflow/rules/rg4detector_summary.smk"
 include: "workflow/rules/rg4_summary_viz.smk"
 
 rule all:
@@ -20,7 +21,9 @@ rule all:
         expand(rules.merge_rg4_detections.output.csv, sample="gencode.v47"),
         expand(rules.summarize_rg4_detection.output.summary_csv, sample="gencode.v47"),
         expand(rules.add_group_annotations.output.annotated_csv, sample="gencode.v47"),
-        expand(rules.visualize_rg4_summary.output.viz_marker, sample="gencode.v47")
+        expand(rules.visualize_rg4_summary.output.viz_marker, sample="gencode.v47"),
+        expand(rules.rg4_count_peaks.output.counts, sample="gencode.v47"),
+        expand(rules.rg4_count_peaks.output.stats, sample="gencode.v47")
 
 # Define default target
 rule all_tests:

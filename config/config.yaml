@@ -5,11 +5,13 @@
 batch_size: 1000  # Sequences per batch for rG4detector
 
 # Summarization Parameters
+peak_threshold: 1.56  # Score threshold for simple peak counting (rg4_count_peaks)
 threshold_low: 1.0  # Score threshold for candidate rG4 peaks
 threshold_high: 2.0  # Score threshold for high-confidence rG4 peaks
 min_peak_prominence: 0.3  # Minimum peak prominence for peak calling
 min_peak_width: 20  # Minimum peak width in nucleotides
 annotation_file: null  # Optional BED file with feature annotations
+group_annotation_file: "/mnt/cbib/LNClassifier/paper/results/gencode.v47.common.cdhit.cv/tables/gencode.v47.common.cdhit.cv_binary_class_table.tsv"  # BED file for grouping transcripts
 
 # Visualization Parameters
 viz_output_dir: "results/{sample}/viz"  # Output directory root for visualizations
