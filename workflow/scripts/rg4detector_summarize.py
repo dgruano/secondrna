@@ -17,11 +17,15 @@ Usage:
 
 import argparse
 import csv
+import sys
+from pathlib import Path
 import numpy as np
-import pandas as pd
 from scipy.signal import find_peaks, peak_widths
 import warnings
 warnings.filterwarnings("ignore")
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.rg4_parsing import stream_detection, load_annotation
 
 
 # ---------------------------------------------------------------------------
@@ -169,142 +173,6 @@ def summarize_transcript(transcript_id, scores, positions,
     }
     result.update(regional_counts)
     return result
-
-
-# ---------------------------------------------------------------------------
-# I/O helpers — streaming, no full-file load
-# ---------------------------------------------------------------------------
-def _peek_format(path):
-    """Read only first 2 non-empty lines to detect block vs. table format."""
-    with open(path, newline="") as handle:
-        reader = csv.reader(handle)
-        lines = []
-        for row in reader:
-            if row and any(cell.strip() for cell in row):
-                lines.append(row)
-                if len(lines) == 2:
-                    break
-    return len(lines) >= 2 and len(lines[1]) > 0 and lines[1][0].strip() == ""
-
-
-def _stream_detection_blocks(path):
-    """
-    Stream block-format detection CSV one transcript at a time.
-
-    Yields (transcript_id, scores_array, positions_array) without loading
-    the full file into memory. Peak memory: O(max_transcript_length).
-    """
-    seq_num = 0
-    with open(path, newline="") as handle:
-        reader = csv.reader(handle)
-        header_row = None
-        for row in reader:
-            if not row or not any(cell.strip() for cell in row):
-                continue
-            if header_row is None:
-                header_row = row
-            else:
-                score_row = row
-                seq_num += 1
-
-                transcript_id = header_row[0].strip()
-                if not transcript_id:
-                    transcript_id = f"sequence_{seq_num}"
-
-                scores = np.array(
-                    [float(v) for v in (c.strip() for c in score_row[1:]) if v],
-                    dtype=np.float32,
-                )
-                nucleotides = [c.strip() for c in header_row[1:] if c.strip()]
-                length = min(len(nucleotides), len(scores)) if nucleotides else len(scores)
-                positions = np.arange(1, length + 1, dtype=np.int32)
-                scores = scores[:length]
-
-                yield transcript_id, scores, positions
-                header_row = None
-
-
-def _stream_detection_table(path, chunk_size=500_000):
-    """
-    Stream table-format detection CSV one transcript at a time using chunked reads.
-
-    Yields (transcript_id, scores_array, positions_array).
-    Peak memory: O(chunk_size + max_transcript_length).
-    """
-    id_candidates    = ["sequence_id", "transcript_id", "name", "id", "seq_id"]
-    pos_candidates   = ["position", "pos", "nucleotide", "nt"]
-    score_candidates = ["score", "prediction", "rg4_score", "value"]
-
-    def resolve(candidates, cols):
-        for c in candidates:
-            if c in cols:
-                return c
-        raise ValueError(f"Cannot find column — expected one of {candidates}, got {list(cols)}")
-
-    # Read one row to resolve column names
-    header_df = pd.read_csv(path, nrows=0)
-    header_df.columns = header_df.columns.str.strip().str.lower()
-    id_col    = resolve(id_candidates,    header_df.columns)
-    pos_col   = resolve(pos_candidates,   header_df.columns)
-    score_col = resolve(score_candidates, header_df.columns)
-
-    pending_id     = None
-    pending_scores = []
-    pending_pos    = []
-
-    for chunk in pd.read_csv(path, chunksize=chunk_size,
-                              usecols=[id_col, pos_col, score_col],
-                              dtype={score_col: np.float32, pos_col: np.int32}):
-        chunk.columns = chunk.columns.str.strip().str.lower()
-        chunk = chunk.rename(columns={id_col: "transcript_id",
-                                      pos_col: "position",
-                                      score_col: "score"})
-
-        for tx_id, group in chunk.groupby("transcript_id", sort=False):
-            group = group.sort_values("position")
-            scores = group["score"].values
-            positions = group["position"].values
-
-            if tx_id == pending_id:
-                # Transcript spans chunk boundary — accumulate
-                pending_scores.append(scores)
-                pending_pos.append(positions)
-            else:
-                if pending_id is not None:
-                    all_scores = np.concatenate(pending_scores)
-                    all_pos    = np.concatenate(pending_pos)
-                    yield pending_id, all_scores, all_pos
-
-                pending_id     = tx_id
-                pending_scores = [scores]
-                pending_pos    = [positions]
-
-    # Flush last transcript
-    if pending_id is not None:
-        yield pending_id, np.concatenate(pending_scores), np.concatenate(pending_pos)
-
-
-def stream_detection(path):
-    """
-    Yield (transcript_id, scores, positions) one transcript at a time.
-    Automatically selects block or table streaming path.
-    """
-    if _peek_format(path):
-        yield from _stream_detection_blocks(path)
-    else:
-        yield from _stream_detection_table(path)
-
-
-def load_annotation(path):
-    """
-    Optional BED-like file: transcript_id, start, end, feature
-    (tab-separated, no header)
-    """
-    if path is None:
-        return None
-    df = pd.read_csv(path, sep="\t", header=None,
-                     names=["transcript_id", "start", "end", "feature"])
-    return df
 
 
 # ---------------------------------------------------------------------------

@@ -11,6 +11,9 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from utils.rg4_parsing import read_nonempty_rows, is_detection_format
+
 
 def read_manifest(manifest_file):
     """Read batch manifest and return batch_id -> (batch_dir, seq_ids)."""
@@ -27,21 +30,6 @@ def read_manifest(manifest_file):
                 seq_ids = [s.strip() for s in parts[2].split(",") if s.strip()]
                 batches[batch_id] = (batch_dir, seq_ids)
     return batches
-
-
-def read_nonempty_rows(csv_file):
-    """Read CSV file and filter out empty rows."""
-    with open(csv_file, newline="") as f:
-        rows = []
-        for row in csv.reader(f):
-            if row and any(len(cell) > 0 and cell.strip() for cell in row):
-                rows.append(row)
-        return rows
-
-
-def is_detection_format(rows):
-    """Check if rows represent detection format (2-line blocks per sequence)."""
-    return len(rows) >= 2 and len(rows[1]) > 0 and rows[1][0].strip() == ""
 
 
 def merge_detection(manifest_file, csv_files, output_file):
