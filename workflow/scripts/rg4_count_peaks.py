@@ -52,10 +52,10 @@ warnings.filterwarnings("ignore")
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.rg4_parsing import stream_detection
 
-
 # ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
+
 
 def setup_logging(log_file=None, level=logging.INFO):
     handlers = [logging.StreamHandler(sys.stderr)]
@@ -73,22 +73,39 @@ def setup_logging(log_file=None, level=logging.INFO):
 # Argument parsing
 # ---------------------------------------------------------------------------
 
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Count rG4 peaks per transcript and compute summary statistics.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--input",  "-i", required=True,
-                        help="rG4detector detection.csv path")
-    parser.add_argument("--output-counts", required=True, dest="output_counts",
-                        help="Output CSV: per-transcript peak counts")
-    parser.add_argument("--output-stats",  required=True, dest="output_stats",
-                        help="Output TSV: aggregate and class-association statistics")
-    parser.add_argument("--threshold", type=float, default=1.56,
-                        help="Peak height threshold (default: 1.56)")
-    parser.add_argument("--labels", default=None,
-                        help="Optional TSV with seq_ID and real columns for class-association tests")
+    parser.add_argument(
+        "--input", "-i", required=True, help="rG4detector detection.csv path"
+    )
+    parser.add_argument(
+        "--output-counts",
+        required=True,
+        dest="output_counts",
+        help="Output CSV: per-transcript peak counts",
+    )
+    parser.add_argument(
+        "--output-stats",
+        required=True,
+        dest="output_stats",
+        help="Output TSV: aggregate and class-association statistics",
+    )
+    parser.add_argument(
+        "--threshold",
+        type=float,
+        default=1.56,
+        help="Peak height threshold (default: 1.56)",
+    )
+    parser.add_argument(
+        "--labels",
+        default=None,
+        help="Optional TSV with seq_ID and real columns for class-association tests",
+    )
     parser.add_argument("--log", default=None, help="Log file path")
     parser.add_argument("--verbose", "-v", action="store_true")
     return parser.parse_args(argv)
@@ -98,17 +115,20 @@ def parse_args(argv=None):
 # Core logic
 # ---------------------------------------------------------------------------
 
+
 def count_peaks(detection_path, threshold, logger):
     """Stream detection.csv and return per-transcript counts DataFrame."""
     records = []
     n = 0
     for transcript_id, scores in stream_detection(detection_path):
         peaks, _ = find_peaks(scores, height=threshold)
-        records.append({
-            "transcript_id":     transcript_id,
-            "transcript_length": len(scores),
-            "peak_count":        len(peaks),
-        })
+        records.append(
+            {
+                "transcript_id": transcript_id,
+                "transcript_length": len(scores),
+                "peak_count": len(peaks),
+            }
+        )
         n += 1
         if n % 10_000 == 0:
             logger.info(f"Processed {n:,} transcripts ...")
@@ -121,13 +141,13 @@ def count_peaks(detection_path, threshold, logger):
 def global_stats(df):
     """Compute aggregate statistics from counts DataFrame."""
     rows = [
-        ("n_transcripts",         len(df)),
-        ("n_with_peaks",          int(df["has_peak"].sum())),
-        ("frac_with_peaks",       round(df["has_peak"].mean(), 6)),
-        ("mean_peak_count",       round(df["peak_count"].mean(), 4)),
-        ("median_peak_count",     round(df["peak_count"].median(), 4)),
-        ("max_peak_count",        int(df["peak_count"].max())),
-        ("mean_transcript_length",round(df["transcript_length"].mean(), 1)),
+        ("n_transcripts", len(df)),
+        ("n_with_peaks", int(df["has_peak"].sum())),
+        ("frac_with_peaks", round(df["has_peak"].mean(), 6)),
+        ("mean_peak_count", round(df["peak_count"].mean(), 4)),
+        ("median_peak_count", round(df["peak_count"].median(), 4)),
+        ("max_peak_count", int(df["peak_count"].max())),
+        ("mean_transcript_length", round(df["transcript_length"].mean(), 1)),
     ]
     return rows
 
@@ -146,7 +166,8 @@ def class_association_stats(df, labels_path, logger):
     merged.index = merged["transcript_id"].str.split("|").str[0]
     merged = merged.merge(
         labels[["seq_ID", "real"]].set_index("seq_ID"),
-        left_index=True, right_index=True,
+        left_index=True,
+        right_index=True,
         how="inner",
     )
     logger.info(f"Merged {len(merged):,} transcripts with class labels")
@@ -159,10 +180,12 @@ def class_association_stats(df, labels_path, logger):
     )
     chi2, p_chi2, dof, _ = chi2_contingency(contingency)
     n = contingency.to_numpy().sum()
-    cramers_v = np.sqrt(chi2 / (n * min(contingency.shape[0] - 1, contingency.shape[1] - 1)))
+    cramers_v = np.sqrt(
+        chi2 / (n * min(contingency.shape[0] - 1, contingency.shape[1] - 1))
+    )
 
-    a = contingency.loc[True,  True]
-    b = contingency.loc[True,  False]
+    a = contingency.loc[True, True]
+    b = contingency.loc[True, False]
     c = contingency.loc[False, True]
     d = contingency.loc[False, False]
     if min(a, b, c, d) == 0:
@@ -173,30 +196,30 @@ def class_association_stats(df, labels_path, logger):
         or_note = ""
 
     # Mann-Whitney U: peak_count by real
-    peak_true  = merged.loc[merged["real"],  "peak_count"]
+    peak_true = merged.loc[merged["real"], "peak_count"]
     peak_false = merged.loc[~merged["real"], "peak_count"]
     u_stat, p_mwu = mannwhitneyu(peak_true, peak_false, alternative="two-sided")
     vda = u_stat / (len(peak_true) * len(peak_false))
 
     rows = [
-        ("n_merged",           len(merged)),
+        ("n_merged", len(merged)),
         ("n_labels_real_true", int(merged["real"].sum())),
-        ("n_labels_real_false",int((~merged["real"]).sum())),
+        ("n_labels_real_false", int((~merged["real"]).sum())),
         # Contingency table
-        ("has_peak_T_real_T",  int(a)),
-        ("has_peak_T_real_F",  int(b)),
-        ("has_peak_F_real_T",  int(c)),
-        ("has_peak_F_real_F",  int(d)),
+        ("has_peak_T_real_T", int(a)),
+        ("has_peak_T_real_F", int(b)),
+        ("has_peak_F_real_T", int(c)),
+        ("has_peak_F_real_F", int(d)),
         # Chi-square
-        ("chi2",               round(chi2, 4)),
-        ("chi2_dof",           dof),
-        ("chi2_pvalue",        f"{p_chi2:.3e}"),
-        ("cramers_v",          round(cramers_v, 6)),
+        ("chi2", round(chi2, 4)),
+        ("chi2_dof", dof),
+        ("chi2_pvalue", f"{p_chi2:.3e}"),
+        ("cramers_v", round(cramers_v, 6)),
         (f"odds_ratio{or_note}", round(odds_ratio, 4)),
         # Mann-Whitney
-        ("mannwhitneyu_U",     round(u_stat, 1)),
-        ("mannwhitneyu_pvalue",f"{p_mwu:.3e}"),
-        ("vda_a12",            round(vda, 6)),
+        ("mannwhitneyu_U", round(u_stat, 1)),
+        ("mannwhitneyu_pvalue", f"{p_mwu:.3e}"),
+        ("vda_a12", round(vda, 6)),
     ]
     return rows
 
@@ -205,18 +228,19 @@ def class_association_stats(df, labels_path, logger):
 # Entry point
 # ---------------------------------------------------------------------------
 
+
 def main():
     if "snakemake" in globals():
         smk = globals()["snakemake"]
         args = argparse.Namespace()
-        args.input         = smk.input.detection
+        args.input = smk.input.detection
         args.output_counts = smk.output.counts
-        args.output_stats  = smk.output.stats
-        args.threshold     = getattr(smk.params, "threshold", 1.56)
-        labels_val         = getattr(smk.input, "labels", None)
-        args.labels        = labels_val if labels_val else None
-        args.log           = smk.log[0] if smk.log else None
-        args.verbose       = False
+        args.output_stats = smk.output.stats
+        args.threshold = getattr(smk.params, "threshold", 1.56)
+        labels_val = getattr(smk.input, "labels", None)
+        args.labels = labels_val if labels_val else None
+        args.log = smk.log[0] if smk.log else None
+        args.verbose = False
     else:
         args = parse_args()
 

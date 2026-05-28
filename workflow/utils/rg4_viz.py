@@ -5,14 +5,15 @@ Provides reusable functions for generating publication-quality static plots
 and interactive visualizations from rG4detector summary CSV output.
 """
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly.graph_objects as go
-import plotly.express as px
 from pathlib import Path
-from typing import Optional, List, Dict, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import seaborn as sns
 
 
 class RG4SummaryLoader:
@@ -41,11 +42,22 @@ class RG4SummaryLoader:
     }
 
     NUMERIC_COLUMNS = {
-        "mean_score", "max_score", "p95_score", "p90_score", "p99_score",
-        "top_peak_score", "top_peak_position", "top_peak_width",
-        "top_peak_prominence", "top_peak_area", "n_peaks_above_low",
-        "n_peaks_above_high", "rg4_density_per_kb", "frac_above_low",
-        "frac_above_high", "transcript_length_nt",
+        "mean_score",
+        "max_score",
+        "p95_score",
+        "p90_score",
+        "p99_score",
+        "top_peak_score",
+        "top_peak_position",
+        "top_peak_width",
+        "top_peak_prominence",
+        "top_peak_area",
+        "n_peaks_above_low",
+        "n_peaks_above_high",
+        "rg4_density_per_kb",
+        "frac_above_low",
+        "frac_above_high",
+        "transcript_length_nt",
     }
 
     @staticmethod
@@ -105,14 +117,14 @@ def plot_score_distribution(
     interactive_fig = None
 
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        fig, axes = plt.subplots(
+            1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4)
+        )
         if len(valid_metrics) == 1:
             axes = [axes]
 
         for ax, metric in zip(axes, valid_metrics):
-            sns.histplot(
-                data=df, x=metric, kde=True, ax=ax, bins=30, color="steelblue"
-            )
+            sns.histplot(data=df, x=metric, kde=True, ax=ax, bins=30, color="steelblue")
             ax.set_title(f"Distribution of {metric}")
             ax.set_xlabel(metric)
             ax.set_ylabel("Count")
@@ -177,7 +189,9 @@ def plot_peak_counts_distribution(
     interactive_fig = None
 
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        fig, axes = plt.subplots(
+            1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4)
+        )
         if len(valid_metrics) == 1:
             axes = [axes]
 
@@ -243,7 +257,9 @@ def plot_coverage_distribution(
     interactive_fig = None
 
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        fig, axes = plt.subplots(
+            1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4)
+        )
         if len(valid_metrics) == 1:
             axes = [axes]
 
@@ -263,9 +279,7 @@ def plot_coverage_distribution(
         interactive_fig = go.Figure()
         for metric in valid_metrics:
             interactive_fig.add_trace(
-                go.Box(
-                    y=df[metric], name=metric, boxmean="sd", showlegend=True
-                )
+                go.Box(y=df[metric], name=metric, boxmean="sd", showlegend=True)
             )
 
         interactive_fig.update_layout(
@@ -766,7 +780,11 @@ def plot_class_comparison(
         for j in range(len(metrics), len(axes_flat)):
             axes_flat[j].set_visible(False)
 
-        plt.suptitle("rG4 Metric Distributions by Transcript Class", fontsize=14, fontweight="bold")
+        plt.suptitle(
+            "rG4 Metric Distributions by Transcript Class",
+            fontsize=14,
+            fontweight="bold",
+        )
         plt.tight_layout()
 
         if output_path is not None:
@@ -783,9 +801,7 @@ def plot_class_comparison(
         # Melt data once for efficient grouping
         available_metrics = [m for m in metrics if m in plot_df.columns]
         melted_df = plot_df[["_class_label"] + available_metrics].melt(
-            id_vars=["_class_label"],
-            var_name="metric",
-            value_name="value"
+            id_vars=["_class_label"], var_name="metric", value_name="value"
         )
 
         classes = sorted(plot_df["_class_label"].dropna().unique())
@@ -818,7 +834,9 @@ def plot_class_comparison(
 
         if output_path is not None:
             out = Path(output_path)
-            save_path = out / "class_comparison_interactive.html" if out.is_dir() else out
+            save_path = (
+                out / "class_comparison_interactive.html" if out.is_dir() else out
+            )
             interactive_fig.write_html(str(save_path))
 
     if format == "static":
@@ -859,7 +877,7 @@ def plot_correlation_heatmap(
     """
     # Auto-detect numeric columns if metrics not specified
     if metrics is None:
-        metrics = df.select_dtypes(include='number').columns.tolist()
+        metrics = df.select_dtypes(include="number").columns.tolist()
 
     # Filter to available metrics
     available_metrics = [m for m in metrics if m in df.columns]
@@ -874,7 +892,7 @@ def plot_correlation_heatmap(
 
     # Helper function to create one heatmap
     def create_heatmap(data: pd.DataFrame, title_suffix: str, file_suffix: str):
-        corr_matrix = data[available_metrics].corr(method='pearson')
+        corr_matrix = data[available_metrics].corr(method="pearson")
 
         static_fig = None
         interactive_fig = None
@@ -900,7 +918,11 @@ def plot_correlation_heatmap(
 
             if output_path is not None:
                 out = Path(output_path)
-                save_path = out / f"correlation_heatmap{file_suffix}.png" if out.is_dir() else out.parent / f"correlation_heatmap{file_suffix}.png"
+                save_path = (
+                    out / f"correlation_heatmap{file_suffix}.png"
+                    if out.is_dir()
+                    else out.parent / f"correlation_heatmap{file_suffix}.png"
+                )
                 plt.savefig(save_path, dpi=300, bbox_inches="tight")
 
             static_fig = fig
@@ -934,7 +956,12 @@ def plot_correlation_heatmap(
 
             if output_path is not None:
                 out = Path(output_path)
-                save_path = out / f"correlation_heatmap{file_suffix}_interactive.html" if out.is_dir() else out.parent / f"correlation_heatmap{file_suffix}_interactive.html"
+                save_path = (
+                    out / f"correlation_heatmap{file_suffix}_interactive.html"
+                    if out.is_dir()
+                    else out.parent
+                    / f"correlation_heatmap{file_suffix}_interactive.html"
+                )
                 interactive_fig.write_html(str(save_path))
 
         if format == "static":
@@ -955,11 +982,7 @@ def plot_correlation_heatmap(
             class_label = label_map.get(class_value, str(class_value))
             file_suffix = suffix_map.get(class_value, f"_{class_value}")
 
-            fig = create_heatmap(
-                class_data,
-                f" — {class_label}",
-                file_suffix
-            )
+            fig = create_heatmap(class_data, f" — {class_label}", file_suffix)
             figures.append(fig)
 
     # Return single figure or list
@@ -1174,7 +1197,9 @@ def plot_transcript_dashboard(
     # Save if output path provided
     if output_path is not None:
         out = Path(output_path)
-        save_path = out / f"transcript_{transcript_id}_dashboard.html" if out.is_dir() else out
+        save_path = (
+            out / f"transcript_{transcript_id}_dashboard.html" if out.is_dir() else out
+        )
         fig.write_html(str(save_path))
 
     return fig

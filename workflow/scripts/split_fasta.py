@@ -4,9 +4,10 @@ Split FASTA file into batches while preserving sequence order and IDs.
 Output: batch FASTA files + manifest mapping sequence IDs to batches.
 """
 
-import sys
 import os
+import sys
 from pathlib import Path
+
 from Bio import SeqIO
 
 
@@ -57,7 +58,9 @@ def split_fasta(input_fasta, output_dir, batch_size):
     if current_batch_fasta:
         batch_file = output_dir / f"batch_{batch_id:05d}.fa"
         SeqIO.write(current_batch_fasta, str(batch_file), "fasta")
-        manifest_line = f"{batch_id:05d}\t{len(current_batch_ids)}\t{','.join(current_batch_ids)}"
+        manifest_line = (
+            f"{batch_id:05d}\t{len(current_batch_ids)}\t{','.join(current_batch_ids)}"
+        )
         manifest_lines.append(manifest_line)
         batch_id += 1
 

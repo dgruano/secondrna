@@ -25,8 +25,9 @@ all original summary columns.
 """
 
 import argparse
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
 
 
 def parse_args():
@@ -36,48 +37,44 @@ def parse_args():
     parser.add_argument(
         "--summary",
         required=True,
-        help="Summary CSV file (output from rg4detector_summarize.py)"
+        help="Summary CSV file (output from rg4detector_summarize.py)",
     )
     parser.add_argument(
         "--annotations",
         required=True,
-        help="Annotation file (TSV, CSV, or similar) with group/class labels"
+        help="Annotation file (TSV, CSV, or similar) with group/class labels",
     )
     parser.add_argument(
-        "--output",
-        required=True,
-        help="Output CSV file with annotations added"
+        "--output", required=True, help="Output CSV file with annotations added"
     )
     parser.add_argument(
         "--id-column",
         default="transcript_id",
-        help="Name of ID column in summary file (default: transcript_id)"
+        help="Name of ID column in summary file (default: transcript_id)",
     )
     parser.add_argument(
         "--annotation-id-column",
         default=None,
-        help="Name of ID column in annotation file (default: auto-detect first column)"
+        help="Name of ID column in annotation file (default: auto-detect first column)",
     )
     parser.add_argument(
-        "--separator",
-        default="\t",
-        help="Delimiter for annotation file (default: tab)"
+        "--separator", default="\t", help="Delimiter for annotation file (default: tab)"
     )
     parser.add_argument(
         "--annotation-columns",
         default=None,
-        help="Comma-separated list of annotation columns to add (default: all columns except ID)"
+        help="Comma-separated list of annotation columns to add (default: all columns except ID)",
     )
     parser.add_argument(
         "--keep-unmatched",
         action="store_true",
-        help="Keep summary rows without annotations (default: only keep matched rows)"
+        help="Keep summary rows without annotations (default: only keep matched rows)",
     )
     parser.add_argument(
         "--on-duplicate",
         default="first",
         choices=["first", "last", "error"],
-        help="How to handle duplicate IDs in annotation file (default: first)"
+        help="How to handle duplicate IDs in annotation file (default: first)",
     )
     return parser.parse_args()
 
@@ -182,25 +179,18 @@ def main():
 
     print(f"[add_annotations] Loading annotations from {args.annotations} ...")
     annotation_df = load_annotations(
-        args.annotations,
-        args.annotation_id_column,
-        args.separator,
-        args.on_duplicate
+        args.annotations, args.annotation_id_column, args.separator, args.on_duplicate
     )
     print(f"[add_annotations] Loaded {len(annotation_df):,} annotation rows")
 
     # Select specific annotation columns if requested
     annotation_df = select_annotation_columns(annotation_df, args.annotation_columns)
-    print(
-        f"[add_annotations] Using annotation columns: {list(annotation_df.columns)}"
-    )
+    print(f"[add_annotations] Using annotation columns: {list(annotation_df.columns)}")
 
     # Merge
     print(f"[add_annotations] Merging summary with annotations ...")
     merged_df = merge_summary_with_annotations(
-        summary_df,
-        annotation_df,
-        args.keep_unmatched
+        summary_df, annotation_df, args.keep_unmatched
     )
 
     # Write output

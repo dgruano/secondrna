@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.rg4_parsing import read_nonempty_rows, is_detection_format
+from utils.rg4_parsing import is_detection_format, read_nonempty_rows
 
 
 def read_manifest(manifest_file):
@@ -48,7 +48,9 @@ def merge_detection(manifest_file, csv_files, output_file):
 
             rows = read_nonempty_rows(csv_path)
             if len(rows) % 2 != 0:
-                raise ValueError(f"Malformed detection CSV (odd number of rows): {csv_path}")
+                raise ValueError(
+                    f"Malformed detection CSV (odd number of rows): {csv_path}"
+                )
 
             record_count = len(rows) // 2
             if record_count != len(seq_ids):

@@ -2,20 +2,22 @@ import csv
 import sys
 import warnings
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks, peak_widths
-
 
 # ---------------------------------------------------------------------------
 # Low-level CSV helpers
 # ---------------------------------------------------------------------------
 
+
 def read_nonempty_rows(path):
     """Read CSV file and return only non-empty rows."""
     with open(path, newline="", encoding="utf-8") as f:
         return [
-            row for row in csv.reader(f)
+            row
+            for row in csv.reader(f)
             if row and any(len(cell) > 0 and cell.strip() for cell in row)
         ]
 
@@ -59,7 +61,7 @@ def stream_detection(path):
             ,0.12,0.87,0.94,0.03,0.21
             ENST00000002,G,G,A,C
             ,0.55,0.61,0.08,0.44
-    
+
     NOTE: This is the output format of the rG4detector tool.
 
     Yields (transcript_id, scores_array, positions_array) without loading
@@ -76,7 +78,7 @@ def stream_detection(path):
                 header_line = line
                 continue
 
-            header_fields = header_line.split(',')
+            header_fields = header_line.split(",")
 
             transcript_id = header_fields[0].strip()
 
@@ -90,6 +92,7 @@ def stream_detection(path):
 # Annotation loader
 # ---------------------------------------------------------------------------
 
+
 def load_annotation(path):
     """
     Load optional BED-like file: transcript_id, start, end, feature
@@ -97,9 +100,11 @@ def load_annotation(path):
     """
     if path is None:
         return None
-    df = pd.read_csv(path, sep="\t", header=None,
-                     names=["transcript_id", "start", "end", "feature"])
+    df = pd.read_csv(
+        path, sep="\t", header=None, names=["transcript_id", "start", "end", "feature"]
+    )
     return df
+
 
 # ---------------------------------------------------------------------------
 # Processing and summarization
@@ -112,7 +117,7 @@ def count_peaks_from_file(file_path: str, th: float = 1.56) -> pd.DataFrame:
     Args:
         file_path: Path to the detection CSV file.
         th: Threshold for peak detection (default: 1.56).
-    
+
     Returns:
         pd.DataFrame: A DataFrame with columns "transcript_id" and "peak_count".
     """
@@ -126,8 +131,5 @@ def count_peaks_from_file(file_path: str, th: float = 1.56) -> pd.DataFrame:
         tx_ids.append(transcript_id)
         peak_counts.append(peak_count)
 
-    df = pd.DataFrame({
-        "transcript_id": tx_ids,
-        "peak_count": peak_counts
-    })
+    df = pd.DataFrame({"transcript_id": tx_ids, "peak_count": peak_counts})
     return df

@@ -9,24 +9,24 @@ from rG4detector summary CSV output.
 import argparse
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import List, Optional
 
 # Add parent directories to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.rg4_viz import (
     RG4SummaryLoader,
-    plot_score_distribution,
-    plot_peak_counts_distribution,
-    plot_coverage_distribution,
-    plot_top_transcripts,
-    create_ranking_table,
     apply_threshold_filter,
-    plot_transcript_profile,
-    plot_peak_location_summary,
+    create_ranking_table,
     plot_class_comparison,
     plot_correlation_heatmap,
+    plot_coverage_distribution,
+    plot_peak_counts_distribution,
+    plot_peak_location_summary,
+    plot_score_distribution,
+    plot_top_transcripts,
     plot_transcript_dashboard,
+    plot_transcript_profile,
 )
 
 
@@ -92,7 +92,14 @@ def main():
         "--plots",
         nargs="+",
         default=["distributions", "ranking", "details"],
-        choices=["distributions", "ranking", "details", "comparison", "correlation", "all"],
+        choices=[
+            "distributions",
+            "ranking",
+            "details",
+            "comparison",
+            "correlation",
+            "all",
+        ],
         help="Which visualizations to generate (default: all)",
     )
 
@@ -177,7 +184,13 @@ def main():
     # Determine which plots to generate
     plot_types = args.plots
     if "all" in plot_types:
-        plot_types = ["distributions", "ranking", "details", "comparison", "correlation"]
+        plot_types = [
+            "distributions",
+            "ranking",
+            "details",
+            "comparison",
+            "correlation",
+        ]
 
     # Generate distribution plots
     if "distributions" in plot_types:
@@ -194,23 +207,35 @@ def main():
                 df,
                 format="interactive",
             )
-            score_interactive.write_html(viz_interactive / "score_distribution_interactive.html")
+            score_interactive.write_html(
+                viz_interactive / "score_distribution_interactive.html"
+            )
             print(f"  ✓ {viz_static / 'score_distribution.png'}")
             print(f"  ✓ {viz_interactive / 'score_distribution_interactive.html'}")
 
             peaks_static = plot_peak_counts_distribution(
-                df, format="static", output_path=viz_static / "peak_counts_distribution.png"
+                df,
+                format="static",
+                output_path=viz_static / "peak_counts_distribution.png",
             )
             peaks_interactive = plot_peak_counts_distribution(df, format="interactive")
-            peaks_interactive.write_html(viz_interactive / "peak_counts_distribution_interactive.html")
+            peaks_interactive.write_html(
+                viz_interactive / "peak_counts_distribution_interactive.html"
+            )
             print(f"  ✓ {viz_static / 'peak_counts_distribution.png'}")
-            print(f"  ✓ {viz_interactive / 'peak_counts_distribution_interactive.html'}")
+            print(
+                f"  ✓ {viz_interactive / 'peak_counts_distribution_interactive.html'}"
+            )
 
             coverage_static = plot_coverage_distribution(
-                df, format="static", output_path=viz_static / "coverage_distribution.png"
+                df,
+                format="static",
+                output_path=viz_static / "coverage_distribution.png",
             )
             coverage_interactive = plot_coverage_distribution(df, format="interactive")
-            coverage_interactive.write_html(viz_interactive / "coverage_distribution_interactive.html")
+            coverage_interactive.write_html(
+                viz_interactive / "coverage_distribution_interactive.html"
+            )
             print(f"  ✓ {viz_static / 'coverage_distribution.png'}")
             print(f"  ✓ {viz_interactive / 'coverage_distribution_interactive.html'}")
         else:
@@ -223,12 +248,16 @@ def main():
                 print(f"  ✓ {viz_static / 'score_distribution.png'}")
 
                 plot_peak_counts_distribution(
-                    df, format="static", output_path=viz_static / "peak_counts_distribution.png"
+                    df,
+                    format="static",
+                    output_path=viz_static / "peak_counts_distribution.png",
                 )
                 print(f"  ✓ {viz_static / 'peak_counts_distribution.png'}")
 
                 plot_coverage_distribution(
-                    df, format="static", output_path=viz_static / "coverage_distribution.png"
+                    df,
+                    format="static",
+                    output_path=viz_static / "coverage_distribution.png",
                 )
                 print(f"  ✓ {viz_static / 'coverage_distribution.png'}")
             else:
@@ -237,12 +266,20 @@ def main():
                 print(f"  ✓ {viz_interactive / 'score_distribution_interactive.html'}")
 
                 fig = plot_peak_counts_distribution(df, format="interactive")
-                fig.write_html(viz_interactive / "peak_counts_distribution_interactive.html")
-                print(f"  ✓ {viz_interactive / 'peak_counts_distribution_interactive.html'}")
+                fig.write_html(
+                    viz_interactive / "peak_counts_distribution_interactive.html"
+                )
+                print(
+                    f"  ✓ {viz_interactive / 'peak_counts_distribution_interactive.html'}"
+                )
 
                 fig = plot_coverage_distribution(df, format="interactive")
-                fig.write_html(viz_interactive / "coverage_distribution_interactive.html")
-                print(f"  ✓ {viz_interactive / 'coverage_distribution_interactive.html'}")
+                fig.write_html(
+                    viz_interactive / "coverage_distribution_interactive.html"
+                )
+                print(
+                    f"  ✓ {viz_interactive / 'coverage_distribution_interactive.html'}"
+                )
 
     # Generate ranking plots
     if "ranking" in plot_types:
@@ -252,9 +289,7 @@ def main():
             fig = plot_top_transcripts(
                 df, metric=args.metric, n=args.top_n_plot, format="static"
             )
-            output_file = (
-                viz_static / f"top_{args.top_n_plot}_by_{args.metric}.png"
-            )
+            output_file = viz_static / f"top_{args.top_n_plot}_by_{args.metric}.png"
             fig.savefig(output_file, dpi=args.dpi, bbox_inches="tight")
             print(f"  ✓ {output_file}")
 
@@ -281,7 +316,9 @@ def main():
             df,
             class_col=args.class_col,
             format=args.format,
-            output_path=viz_static if args.format in ("static", "both") else viz_interactive,
+            output_path=(
+                viz_static if args.format in ("static", "both") else viz_interactive
+            ),
         )
         if fig is not None:
             if args.format in ("static", "both"):
@@ -296,7 +333,9 @@ def main():
             df,
             class_col=args.class_col if args.class_col in df.columns else None,
             format=args.format,
-            output_path=viz_static if args.format in ("static", "both") else viz_interactive,
+            output_path=(
+                viz_static if args.format in ("static", "both") else viz_interactive
+            ),
         )
         if result is not None:
             # Check if we got multiple heatmaps (class split)
@@ -310,11 +349,19 @@ def main():
                     print(f"  ✓ {viz_static / 'correlation_heatmap.png'}")
             if args.format in ("interactive", "both"):
                 if has_class_split:
-                    print(f"  ✓ {viz_interactive / 'correlation_heatmap_global_interactive.html'}")
-                    print(f"  ✓ {viz_interactive / 'correlation_heatmap_pc_interactive.html'}")
-                    print(f"  ✓ {viz_interactive / 'correlation_heatmap_lncrna_interactive.html'}")
+                    print(
+                        f"  ✓ {viz_interactive / 'correlation_heatmap_global_interactive.html'}"
+                    )
+                    print(
+                        f"  ✓ {viz_interactive / 'correlation_heatmap_pc_interactive.html'}"
+                    )
+                    print(
+                        f"  ✓ {viz_interactive / 'correlation_heatmap_lncrna_interactive.html'}"
+                    )
                 else:
-                    print(f"  ✓ {viz_interactive / 'correlation_heatmap_interactive.html'}")
+                    print(
+                        f"  ✓ {viz_interactive / 'correlation_heatmap_interactive.html'}"
+                    )
 
     # Generate per-transcript detail views
     if "details" in plot_types:
@@ -330,9 +377,7 @@ def main():
         for transcript_id in transcripts:
             # Generate profile (static and/or interactive, efficiently)
             if args.format == "both":
-                fig_static = plot_transcript_profile(
-                    df, transcript_id, format="static"
-                )
+                fig_static = plot_transcript_profile(df, transcript_id, format="static")
                 if fig_static:
                     output_file = viz_static / f"transcript_{transcript_id}_profile.png"
                     fig_static.savefig(output_file, dpi=args.dpi, bbox_inches="tight")
@@ -342,19 +387,23 @@ def main():
                     df, transcript_id, format="interactive"
                 )
                 if fig_interactive:
-                    output_file = viz_interactive / f"transcript_{transcript_id}_profile.html"
+                    output_file = (
+                        viz_interactive / f"transcript_{transcript_id}_profile.html"
+                    )
                     fig_interactive.write_html(output_file)
                     print(f"  ✓ {output_file}")
             else:
-                fig = plot_transcript_profile(
-                    df, transcript_id, format=args.format
-                )
+                fig = plot_transcript_profile(df, transcript_id, format=args.format)
                 if fig:
                     if args.format == "static":
-                        output_file = viz_static / f"transcript_{transcript_id}_profile.png"
+                        output_file = (
+                            viz_static / f"transcript_{transcript_id}_profile.png"
+                        )
                         fig.savefig(output_file, dpi=args.dpi, bbox_inches="tight")
                     else:
-                        output_file = viz_interactive / f"transcript_{transcript_id}_profile.html"
+                        output_file = (
+                            viz_interactive / f"transcript_{transcript_id}_profile.html"
+                        )
                         fig.write_html(output_file)
                     print(f"  ✓ {output_file}")
 
@@ -367,7 +416,9 @@ def main():
                     output_path=viz_interactive,
                 )
                 if fig:
-                    output_file = viz_interactive / f"transcript_{transcript_id}_dashboard.html"
+                    output_file = (
+                        viz_interactive / f"transcript_{transcript_id}_dashboard.html"
+                    )
                     print(f"  ✓ {output_file}")
 
     print("\n✓ All visualizations generated successfully!")
