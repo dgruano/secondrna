@@ -78,12 +78,16 @@ def plot_score_distribution(
     if metrics is None:
         metrics = ["mean_score", "max_score", "p95_score"]
 
+    valid_metrics = [m for m in metrics if m in df.columns]
+    static_fig = None
+    interactive_fig = None
+
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, len(metrics), figsize=(5 * len(metrics), 4))
-        if len(metrics) == 1:
+        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        if len(valid_metrics) == 1:
             axes = [axes]
 
-        for ax, metric in zip(axes, metrics):
+        for ax, metric in zip(axes, valid_metrics):
             sns.histplot(
                 data=df, x=metric, kde=True, ax=ax, bins=30, color="steelblue"
             )
@@ -94,13 +98,14 @@ def plot_score_distribution(
         plt.tight_layout()
         if output_path:
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        static_fig = fig
         if format == "static":
             return fig
 
     if format in ("interactive", "both"):
-        fig = go.Figure()
-        for metric in metrics:
-            fig.add_trace(
+        interactive_fig = go.Figure()
+        for metric in valid_metrics:
+            interactive_fig.add_trace(
                 go.Histogram(
                     x=df[metric],
                     name=metric,
@@ -110,7 +115,7 @@ def plot_score_distribution(
                 )
             )
 
-        fig.update_layout(
+        interactive_fig.update_layout(
             title="Distribution of rG4 Scores",
             xaxis_title="Score",
             yaxis_title="Count",
@@ -118,9 +123,9 @@ def plot_score_distribution(
             template="plotly_white",
         )
         if format == "interactive":
-            return fig
+            return interactive_fig
 
-    return fig
+    return interactive_fig if format == "both" else static_fig
 
 
 def plot_peak_counts_distribution(
@@ -145,11 +150,16 @@ def plot_peak_counts_distribution(
     Figure or go.Figure
     """
     metrics = ["n_peaks_above_low", "n_peaks_above_high", "rg4_density_per_kb"]
+    valid_metrics = [m for m in metrics if m in df.columns]
+    static_fig = None
+    interactive_fig = None
 
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4))
+        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        if len(valid_metrics) == 1:
+            axes = [axes]
 
-        for ax, metric in zip(axes, metrics):
+        for ax, metric in zip(axes, valid_metrics):
             sns.histplot(data=df, x=metric, kde=True, ax=ax, bins=30, color="coral")
             ax.set_title(f"Distribution of {metric}")
             ax.set_xlabel(metric)
@@ -158,19 +168,20 @@ def plot_peak_counts_distribution(
         plt.tight_layout()
         if output_path:
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        static_fig = fig
         if format == "static":
             return fig
 
     if format in ("interactive", "both"):
-        fig = go.Figure()
-        for metric in metrics:
-            fig.add_trace(
+        interactive_fig = go.Figure()
+        for metric in valid_metrics:
+            interactive_fig.add_trace(
                 go.Histogram(
                     x=df[metric], name=metric, nbinsx=30, opacity=0.7, showlegend=True
                 )
             )
 
-        fig.update_layout(
+        interactive_fig.update_layout(
             title="Distribution of Peak Counts and Density",
             xaxis_title="Value",
             yaxis_title="Count",
@@ -178,9 +189,9 @@ def plot_peak_counts_distribution(
             template="plotly_white",
         )
         if format == "interactive":
-            return fig
+            return interactive_fig
 
-    return fig
+    return interactive_fig if format == "both" else static_fig
 
 
 def plot_coverage_distribution(
@@ -205,11 +216,16 @@ def plot_coverage_distribution(
     Figure or go.Figure
     """
     metrics = ["frac_above_low", "frac_above_high"]
+    valid_metrics = [m for m in metrics if m in df.columns]
+    static_fig = None
+    interactive_fig = None
 
     if format in ("static", "both"):
-        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+        fig, axes = plt.subplots(1, len(valid_metrics), figsize=(5 * len(valid_metrics), 4))
+        if len(valid_metrics) == 1:
+            axes = [axes]
 
-        for ax, metric in zip(axes, metrics):
+        for ax, metric in zip(axes, valid_metrics):
             sns.violinplot(data=df, y=metric, ax=ax, color="lightgreen")
             ax.set_title(f"Distribution of {metric}")
             ax.set_ylabel(metric)
@@ -217,28 +233,29 @@ def plot_coverage_distribution(
         plt.tight_layout()
         if output_path:
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        static_fig = fig
         if format == "static":
             return fig
 
     if format in ("interactive", "both"):
-        fig = go.Figure()
-        for metric in metrics:
-            fig.add_trace(
+        interactive_fig = go.Figure()
+        for metric in valid_metrics:
+            interactive_fig.add_trace(
                 go.Box(
                     y=df[metric], name=metric, boxmean="sd", showlegend=True
                 )
             )
 
-        fig.update_layout(
+        interactive_fig.update_layout(
             title="Distribution of Coverage Metrics",
             yaxis_title="Fraction",
             hovermode="y unified",
             template="plotly_white",
         )
         if format == "interactive":
-            return fig
+            return interactive_fig
 
-    return fig
+    return interactive_fig if format == "both" else static_fig
 
 
 def apply_threshold_filter(
@@ -262,21 +279,24 @@ def apply_threshold_filter(
     """
     filtered = df.copy()
 
+    # Build combined mask for all filters at once
+    mask = pd.Series(True, index=filtered.index)
+
     for column, (op_str, threshold) in filters.items():
         if column not in filtered.columns:
             print(f"Warning: Column {column} not found in DataFrame")
             continue
 
         if op_str == ">":
-            filtered = filtered[filtered[column] > threshold]
+            mask &= filtered[column] > threshold
         elif op_str == "<":
-            filtered = filtered[filtered[column] < threshold]
+            mask &= filtered[column] < threshold
         elif op_str == ">=":
-            filtered = filtered[filtered[column] >= threshold]
+            mask &= filtered[column] >= threshold
         elif op_str == "<=":
-            filtered = filtered[filtered[column] <= threshold]
+            mask &= filtered[column] <= threshold
 
-    return filtered
+    return filtered[mask]
 
 
 def plot_top_transcripts(
@@ -375,6 +395,9 @@ def create_ranking_table(
     if "transcript_id" not in key_metrics:
         key_metrics = ["transcript_id"] + key_metrics
 
+    # Filter to valid metrics (handle missing columns)
+    key_metrics = [m for m in key_metrics if m in df.columns]
+
     top_df = df.nlargest(top_n, "top_peak_score")[key_metrics].reset_index(drop=True)
 
     fig = go.Figure(
@@ -436,31 +459,41 @@ def plot_transcript_profile(
 
     row = row.iloc[0]
 
+    # Pre-compute panel data once for both formats
+    peaks_data = [row["n_peaks_above_low"], row["n_peaks_above_high"]]
+    peak_props = {
+        "Score": row["top_peak_score"],
+        "Width": row.get("top_peak_width", 0),
+        "Prominence": row.get("top_peak_prominence", 0),
+    }
+    coverage_data = [row["frac_above_low"], row["frac_above_high"]]
+    scores = {
+        "Mean": row["mean_score"],
+        "Max": row["max_score"],
+        "P95": row.get("p95_score", 0),
+    }
+
+    static_fig = None
+    interactive_fig = None
+
     if format in ("static", "both"):
         fig, axes = plt.subplots(2, 2, figsize=(10, 8))
         fig.suptitle(f"Profile for {transcript_id}", fontsize=14, fontweight="bold")
 
         # Panel 1: Peak counts
         ax = axes[0, 0]
-        peaks_data = [row["n_peaks_above_low"], row["n_peaks_above_high"]]
         ax.bar(["Low threshold", "High threshold"], peaks_data, color=["coral", "red"])
         ax.set_ylabel("Number of peaks")
         ax.set_title("Peak Counts")
 
         # Panel 2: Top peak properties
         ax = axes[0, 1]
-        peak_props = {
-            "Score": row["top_peak_score"],
-            "Width": row["top_peak_width"] if "top_peak_width" in row else 0,
-            "Prominence": row["top_peak_prominence"] if "top_peak_prominence" in row else 0,
-        }
         ax.bar(peak_props.keys(), peak_props.values(), color="steelblue")
         ax.set_ylabel("Value")
         ax.set_title("Top Peak Properties")
 
         # Panel 3: Coverage metrics
         ax = axes[1, 0]
-        coverage_data = [row["frac_above_low"], row["frac_above_high"]]
         ax.bar(["Low threshold", "High threshold"], coverage_data, color="lightgreen")
         ax.set_ylabel("Fraction")
         ax.set_ylim([0, 1])
@@ -468,11 +501,6 @@ def plot_transcript_profile(
 
         # Panel 4: Score summary
         ax = axes[1, 1]
-        scores = {
-            "Mean": row["mean_score"],
-            "Max": row["max_score"],
-            "P95": row["p95_score"] if "p95_score" in row else 0,
-        }
         ax.bar(scores.keys(), scores.values(), color="purple", alpha=0.7)
         ax.set_ylabel("Score")
         ax.set_title("Score Summary")
@@ -480,13 +508,11 @@ def plot_transcript_profile(
         plt.tight_layout()
         if output_path:
             plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        static_fig = fig
         if format == "static":
             return fig
 
     if format in ("interactive", "both"):
-        fig = go.Figure()
-
-        # Create subplots
         from plotly.subplots import make_subplots
 
         fig = make_subplots(
@@ -504,7 +530,7 @@ def plot_transcript_profile(
         fig.add_trace(
             go.Bar(
                 x=["Low threshold", "High threshold"],
-                y=[row["n_peaks_above_low"], row["n_peaks_above_high"]],
+                y=peaks_data,
                 name="Peaks",
                 marker_color="coral",
             ),
@@ -513,11 +539,6 @@ def plot_transcript_profile(
         )
 
         # Panel 2: Top peak properties
-        peak_props = {
-            "Score": row["top_peak_score"],
-            "Width": row.get("top_peak_width", 0),
-            "Prominence": row.get("top_peak_prominence", 0),
-        }
         fig.add_trace(
             go.Bar(
                 x=list(peak_props.keys()),
@@ -533,7 +554,7 @@ def plot_transcript_profile(
         fig.add_trace(
             go.Bar(
                 x=["Low threshold", "High threshold"],
-                y=[row["frac_above_low"], row["frac_above_high"]],
+                y=coverage_data,
                 name="Coverage",
                 marker_color="lightgreen",
             ),
@@ -542,11 +563,6 @@ def plot_transcript_profile(
         )
 
         # Panel 4: Score summary
-        scores = {
-            "Mean": row["mean_score"],
-            "Max": row["max_score"],
-            "P95": row.get("p95_score", 0),
-        }
         fig.add_trace(
             go.Bar(
                 x=list(scores.keys()),
@@ -564,10 +580,11 @@ def plot_transcript_profile(
             showlegend=False,
             template="plotly_white",
         )
+        interactive_fig = fig
         if format == "interactive":
             return fig
 
-    return fig
+    return interactive_fig if format == "both" else static_fig
 
 
 def plot_peak_location_summary(
@@ -639,4 +656,6 @@ def plot_peak_location_summary(
             yaxis=dict(range=[0, 1.5]),
             template="plotly_white",
         )
+        return fig
+
         return fig
