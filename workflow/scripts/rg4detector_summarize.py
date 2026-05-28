@@ -172,89 +172,127 @@ def summarize_transcript(transcript_id, scores, positions,
 
 
 # ---------------------------------------------------------------------------
-# I/O helpers
+# I/O helpers — streaming, no full-file load
 # ---------------------------------------------------------------------------
-def _read_nonempty_rows(path):
+def _peek_format(path):
+    """Read only first 2 non-empty lines to detect block vs. table format."""
     with open(path, newline="") as handle:
-        return [row for row in csv.reader(handle) if row and any(cell.strip() for cell in row)]
+        reader = csv.reader(handle)
+        lines = []
+        for row in reader:
+            if row and any(cell.strip() for cell in row):
+                lines.append(row)
+                if len(lines) == 2:
+                    break
+    return len(lines) >= 2 and len(lines[1]) > 0 and lines[1][0].strip() == ""
 
 
-def _is_block_detection_format(rows):
-    return len(rows) >= 2 and len(rows[1]) > 0 and rows[1][0].strip() == ""
+def _stream_detection_blocks(path):
+    """
+    Stream block-format detection CSV one transcript at a time.
 
-
-def _load_detection_blocks(path):
-    """Parse rG4detector 2-line detection blocks into long-form rows."""
-    rows = _read_nonempty_rows(path)
-    if len(rows) % 2 != 0:
-        raise ValueError("Malformed detection CSV: odd number of non-empty rows")
-
-    records = []
-    row_index = 0
-    while row_index < len(rows):
-        header_row = rows[row_index]
-        score_row = rows[row_index + 1]
-        row_index += 2
-
-        transcript_id = header_row[0].strip()
-        if transcript_id == "":
-            transcript_id = f"sequence_{(row_index // 2)}"
-
-        scores = []
-        for value in score_row[1:]:
-            value = value.strip()
-            if value == "":
+    Yields (transcript_id, scores_array, positions_array) without loading
+    the full file into memory. Peak memory: O(max_transcript_length).
+    """
+    seq_num = 0
+    with open(path, newline="") as handle:
+        reader = csv.reader(handle)
+        header_row = None
+        for row in reader:
+            if not row or not any(cell.strip() for cell in row):
                 continue
-            scores.append(float(value))
+            if header_row is None:
+                header_row = row
+            else:
+                score_row = row
+                seq_num += 1
 
-        nucleotides = [cell.strip() for cell in header_row[1:] if cell.strip() != ""]
-        length = min(len(nucleotides), len(scores)) if nucleotides else len(scores)
+                transcript_id = header_row[0].strip()
+                if not transcript_id:
+                    transcript_id = f"sequence_{seq_num}"
 
-        for idx in range(length):
-            records.append(
-                {
-                    "transcript_id": transcript_id,
-                    "position": idx + 1,
-                    "score": scores[idx],
-                }
-            )
+                scores = np.array(
+                    [float(v) for v in (c.strip() for c in score_row[1:]) if v],
+                    dtype=np.float32,
+                )
+                nucleotides = [c.strip() for c in header_row[1:] if c.strip()]
+                length = min(len(nucleotides), len(scores)) if nucleotides else len(scores)
+                positions = np.arange(1, length + 1, dtype=np.int32)
+                scores = scores[:length]
 
-    return pd.DataFrame(records, columns=["transcript_id", "position", "score"])
+                yield transcript_id, scores, positions
+                header_row = None
 
 
-def _load_detection_table(path):
-    """Parse row-oriented detection CSV with flexible column names."""
-    df = pd.read_csv(path)
-    df.columns = df.columns.str.strip().str.lower()
+def _stream_detection_table(path, chunk_size=500_000):
+    """
+    Stream table-format detection CSV one transcript at a time using chunked reads.
 
-    id_candidates = ["sequence_id", "transcript_id", "name", "id", "seq_id"]
-    pos_candidates = ["position", "pos", "nucleotide", "nt"]
+    Yields (transcript_id, scores_array, positions_array).
+    Peak memory: O(chunk_size + max_transcript_length).
+    """
+    id_candidates    = ["sequence_id", "transcript_id", "name", "id", "seq_id"]
+    pos_candidates   = ["position", "pos", "nucleotide", "nt"]
     score_candidates = ["score", "prediction", "rg4_score", "value"]
 
     def resolve(candidates, cols):
-        for candidate in candidates:
-            if candidate in cols:
-                return candidate
-        raise ValueError(f"Cannot find column - expected one of {candidates}, got {list(cols)}")
+        for c in candidates:
+            if c in cols:
+                return c
+        raise ValueError(f"Cannot find column — expected one of {candidates}, got {list(cols)}")
 
-    id_col = resolve(id_candidates, df.columns)
-    pos_col = resolve(pos_candidates, df.columns)
-    score_col = resolve(score_candidates, df.columns)
+    # Read one row to resolve column names
+    header_df = pd.read_csv(path, nrows=0)
+    header_df.columns = header_df.columns.str.strip().str.lower()
+    id_col    = resolve(id_candidates,    header_df.columns)
+    pos_col   = resolve(pos_candidates,   header_df.columns)
+    score_col = resolve(score_candidates, header_df.columns)
 
-    df = df.rename(columns={id_col: "transcript_id", pos_col: "position", score_col: "score"})
-    return df[["transcript_id", "position", "score"]]
+    pending_id     = None
+    pending_scores = []
+    pending_pos    = []
+
+    for chunk in pd.read_csv(path, chunksize=chunk_size,
+                              usecols=[id_col, pos_col, score_col],
+                              dtype={score_col: np.float32, pos_col: np.int32}):
+        chunk.columns = chunk.columns.str.strip().str.lower()
+        chunk = chunk.rename(columns={id_col: "transcript_id",
+                                      pos_col: "position",
+                                      score_col: "score"})
+
+        for tx_id, group in chunk.groupby("transcript_id", sort=False):
+            group = group.sort_values("position")
+            scores = group["score"].values
+            positions = group["position"].values
+
+            if tx_id == pending_id:
+                # Transcript spans chunk boundary — accumulate
+                pending_scores.append(scores)
+                pending_pos.append(positions)
+            else:
+                if pending_id is not None:
+                    all_scores = np.concatenate(pending_scores)
+                    all_pos    = np.concatenate(pending_pos)
+                    yield pending_id, all_scores, all_pos
+
+                pending_id     = tx_id
+                pending_scores = [scores]
+                pending_pos    = [positions]
+
+    # Flush last transcript
+    if pending_id is not None:
+        yield pending_id, np.concatenate(pending_scores), np.concatenate(pending_pos)
 
 
-def load_detection(path):
+def stream_detection(path):
     """
-    Load rG4detector detection output in either supported format:
-    1) row-oriented CSV with transcript_id/position/score columns
-    2) 2-line block format (description+nucleotides, then scores)
+    Yield (transcript_id, scores, positions) one transcript at a time.
+    Automatically selects block or table streaming path.
     """
-    rows = _read_nonempty_rows(path)
-    if _is_block_detection_format(rows):
-        return _load_detection_blocks(path)
-    return _load_detection_table(path)
+    if _peek_format(path):
+        yield from _stream_detection_blocks(path)
+    else:
+        yield from _stream_detection_table(path)
 
 
 def load_annotation(path):
@@ -270,37 +308,42 @@ def load_annotation(path):
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Main — streaming, writes output incrementally
 # ---------------------------------------------------------------------------
 def main():
     args = parse_args()
 
-    print(f"[rg4_summarize] Loading {args.input} ...")
-    df  = load_detection(args.input)
     ann = load_annotation(args.annotation)
 
-    records = []
-    transcripts = df["transcript_id"].unique()
-    print(f"[rg4_summarize] Processing {len(transcripts)} transcripts ...")
+    print(f"[rg4_summarize] Streaming {args.input} ...")
 
-    for tx_id in transcripts:
-        sub = df[df["transcript_id"] == tx_id].sort_values("position")
-        rec = summarize_transcript(
-            transcript_id      = tx_id,
-            scores             = sub["score"].values,
-            positions          = sub["position"].values,
-            threshold_low      = args.threshold_low,
-            threshold_high     = args.threshold_high,
-            min_prominence     = args.min_peak_prominence,
-            min_width          = args.min_peak_width,
-            annotation_df      = ann
-        )
-        records.append(rec)
+    writer = None
+    n_processed = 0
 
-    summary = pd.DataFrame(records)
-    summary.to_csv(args.output, index=False)
-    print(f"[rg4_summarize] Done. Summary written to {args.output}")
-    print(summary.head())
+    with open(args.output, "w", newline="") as out_fh:
+        for tx_id, scores, positions in stream_detection(args.input):
+            rec = summarize_transcript(
+                transcript_id  = tx_id,
+                scores         = scores,
+                positions      = positions,
+                threshold_low  = args.threshold_low,
+                threshold_high = args.threshold_high,
+                min_prominence = args.min_peak_prominence,
+                min_width      = args.min_peak_width,
+                annotation_df  = ann,
+            )
+
+            if writer is None:
+                writer = csv.DictWriter(out_fh, fieldnames=list(rec.keys()))
+                writer.writeheader()
+
+            writer.writerow(rec)
+            n_processed += 1
+
+            if n_processed % 10_000 == 0:
+                print(f"[rg4_summarize] Processed {n_processed:,} transcripts ...")
+
+    print(f"[rg4_summarize] Done. {n_processed:,} transcripts written to {args.output}")
 
 
 if __name__ == "__main__":
