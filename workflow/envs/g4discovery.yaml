@@ -1,0 +1,19 @@
+name: g4discovery
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # Python + core libraries
+  - python=3.10
+  - pip
+  - numpy
+  - pandas
+  - biopython
+  # R + Bioconductor packages required by g4Discovery
+  - r-base=4.3
+  - r-seqinr
+  - bioconductor-biostrings
+  - bioconductor-pqsfinder
+  - bioconductor-rtracklayer
+  - bioconductor-bsgenome
