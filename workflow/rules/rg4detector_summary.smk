@@ -30,7 +30,7 @@ rule rg4_count_peaks:
         "benchmarks/{sample}/rg4_count_peaks.tsv"
     resources:
         runtime    = 30,
-        mem_mb     = 1024 * 8,
+        mem_mb     = 1024 * 10,
         cpus_per_task = 1
     script:
         "../scripts/rg4_count_peaks.py"
