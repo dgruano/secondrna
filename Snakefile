@@ -14,6 +14,7 @@ include: "workflow/rules/rg4detector_batch.smk"
 include: "workflow/rules/utils.smk"
 include: "workflow/rules/rg4detector_summary.smk"
 include: "workflow/rules/rg4_summary_viz.smk"
+include: "workflow/rules/batch.smk"
 
 rule all:
     input:
