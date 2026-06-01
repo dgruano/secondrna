@@ -34,3 +34,20 @@ rule rg4_count_peaks:
         cpus_per_task = 1
     script:
         "../scripts/rg4_count_peaks.py"
+
+
+rule rg4_peaks_to_bed:
+    """
+    Convert detected rG4 peaks to BED format for visualization.
+    """
+    input:
+        detection = "results/{sample}/detection.csv"
+    output:
+        bed = "results/{sample}/{sample}.rG4detector.peaks.bed"
+    log:
+        "logs/{sample}/rg4_peaks_to_bed.log"
+    resources:
+        runtime=10,
+        mem_mb=1024 * 5
+    script:
+        "../scripts/rg4_peaks_to_bed.py"

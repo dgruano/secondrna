@@ -133,3 +133,38 @@ def count_peaks_from_file(file_path: str, th: float = 1.56) -> pd.DataFrame:
 
     df = pd.DataFrame({"transcript_id": tx_ids, "peak_count": peak_counts})
     return df
+
+
+def peak_file_to_df(detection_file: str, threshold: float) -> pd.DataFrame:
+    """
+    Reads a detection CSV file, finds peaks above the given threshold,
+    and returns a DataFrame with one row per peak, including columns:
+        - transcript_id
+        - peak_position (0-based)
+        - peak_strand
+        - peak_score
+
+    Args:
+        - detection_file (str): Path to the detection CSV file.
+        - threshold (float): Threshold for peak detection.
+
+    Returns:
+        pd.DataFrame: A DataFrame with columns "transcript_id", "peak_position", "peak_strand", "peak_score".
+    """
+    records = []
+    for transcript_id, scores in stream_detection(detection_file):
+        scores_array = np.array(scores)
+        peaks, properties = find_peaks(scores_array, height=threshold)
+        df = pd.DataFrame(
+            {
+                "transcript_id": transcript_id,
+                "peak_position": peaks,
+                "peak_score": properties["peak_heights"],
+            }
+        )
+        records.append(df)
+    df = pd.concat(records, ignore_index=True)
+    # Peak strand is + if score >0, else -
+    df["peak_strand"] = np.where(df["peak_score"] > 0, "+", "-")
+    df["peak_score"] = df["peak_score"].abs()
+    return df
