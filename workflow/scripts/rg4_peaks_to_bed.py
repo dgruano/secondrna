@@ -17,6 +17,7 @@ Usage:
         --input detection.csv \\
         --output peaks.bed \\
         [--threshold 1.56] \\
+        [--d 0] \\
         [--log rg4_peaks_to_bed.log]
 
 Snakemake script block usage (auto-detected via snakemake global):
@@ -28,7 +29,8 @@ Snakemake script block usage (auto-detected via snakemake global):
         log:
             "logs/rg4_peaks_to_bed_{dataset}.log"
         params:
-            threshold = 1.56
+            threshold = 1.56,
+            d = 0
         script:
             "scripts/rg4_peaks_to_bed.py"
 """
@@ -82,6 +84,12 @@ def parse_args(argv=None):
         default=1.56,
         help="Peak height threshold (default: 1.56)",
     )
+    parser.add_argument(
+        "--d",
+        type=int,
+        default=0,
+        help="Extend each peak by d bases on each side (default: 0)",
+    )
     parser.add_argument("--log", default=None, help="Log file path")
     parser.add_argument("--verbose", "-v", action="store_true")
     return parser.parse_args(argv)
@@ -92,22 +100,23 @@ def parse_args(argv=None):
 # ---------------------------------------------------------------------------
 
 
-def peaks_to_bed6(detection_path, threshold, logger):
+def peaks_to_bed6(detection_path, threshold, d, logger):
     """Stream detection.csv and return peaks as a BED6 DataFrame."""
-    logger.info(f"Calling peaks (threshold={threshold}) ...")
+    logger.info(f"Calling peaks (threshold={threshold}, d={d}) ...")
     df = peak_file_to_df(detection_path, threshold)
     logger.info(
         f"Found {len(df):,} peaks across {df['transcript_id'].nunique():,} transcripts"
     )
 
     # TODO: Map transcripts to their original chromosomal coordinates if needed (requires additional metadata)
-    df["end"] = df["peak_position"] + 1
+    df["start"] = (df["peak_position"] - d).clip(lower=0)
+    df["end"] = df["peak_position"] + 1 + d
 
     # Reorder to BED6: chrom, start, end, name, score, strand
     df = df[
         [
             "transcript_id",
-            "peak_position",
+            "start",
             "end",
             "transcript_id",
             "peak_score",
@@ -130,6 +139,7 @@ def main():
         args.input = smk.input.detection
         args.output = smk.output.bed
         args.threshold = getattr(smk.params, "threshold", 1.56)
+        args.d = getattr(smk.params, "d", 0)
         args.log = smk.log[0] if smk.log else None
         args.verbose = False
     else:
@@ -145,7 +155,7 @@ def main():
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
 
     logger.info(f"Streaming {input_path} ...")
-    df = peaks_to_bed6(str(input_path), args.threshold, logger)
+    df = peaks_to_bed6(str(input_path), args.threshold, args.d, logger)
 
     df.to_csv(args.output, sep="\t", index=False, header=False)
     logger.info(f"BED file written to {args.output} ({len(df):,} peaks)")

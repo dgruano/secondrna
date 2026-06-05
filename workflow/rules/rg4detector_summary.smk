@@ -46,6 +46,8 @@ rule rg4_peaks_to_bed:
         bed = "results/{sample}/{sample}.rG4detector.peaks.bed"
     log:
         "logs/{sample}/rg4_peaks_to_bed.log"
+    params:
+        d = config.get("peak_extension", 0)
     resources:
         runtime=10,
         mem_mb=1024 * 5
