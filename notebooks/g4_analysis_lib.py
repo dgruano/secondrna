@@ -140,3 +140,44 @@ def annotate_union(
         length_ann.set_index("transcript_id"), on="transcript_id", how="left"
     )
     return union
+
+
+# ─── Subset definitions ────────────────────────────────────────────────────────
+@dataclass
+class SubsetSpec:
+    name: str  # short slug for dict keys
+    label: str  # human-readable label for plot titles
+
+
+_PQS_THRESHOLDS = [30, 40]
+_G4H_THRESHOLDS = [1.0, 1.2, 1.5]
+
+
+def _threshold_filter(pqs_th: float, g4h_th: float) -> Callable:
+    def _filter(df: pd.DataFrame) -> pd.DataFrame:
+        return df[
+            (df["type"] != "RG4D only")
+            & (df["pqsfinder_score"] >= pqs_th)
+            & (df["g4HunterScore"] >= g4h_th)
+        ].copy()
+
+    return _filter
+
+
+def build_subsets(union_df: pd.DataFrame) -> list[tuple[SubsetSpec, pd.DataFrame]]:
+    """Return list of (SubsetSpec, filtered_dataframe) for all 8 subsets."""
+    result: list[tuple[SubsetSpec, pd.DataFrame]] = [
+        (SubsetSpec("union", "Union (all motifs)"), union_df.copy()),
+        (
+            SubsetSpec("rg4d_only", "rG4D-only motifs"),
+            union_df[union_df["type"] == "RG4D only"].copy(),
+        ),
+    ]
+    for pqs_th in _PQS_THRESHOLDS:
+        for g4h_th in _G4H_THRESHOLDS:
+            name = f"pqs{pqs_th}_g4h{g4h_th}"
+            label = f"G4D pqs≥{pqs_th} & G4H≥{g4h_th}"
+            result.append(
+                (SubsetSpec(name, label), _threshold_filter(pqs_th, g4h_th)(union_df))
+            )
+    return result
