@@ -16,7 +16,7 @@ GROUP_ANNOTATION_SEPARATOR = config.get("group_annotation_separator", "\t")
 GROUP_ANNOTATION_KEEP_UNMATCHED = config.get("group_annotation_keep_unmatched", False)
 
 # Configuration defaults for visualization
-VIZ_OUTPUT_DIR = config.get("viz_output_dir", "results/{sample}/viz")
+VIZ_OUTPUT_DIR = config.get("viz_output_dir", "results/{sample}/rg4detector/viz")
 VIZ_PLOTS = config.get("viz_plots", ["distributions", "ranking", "details"])
 VIZ_FORMAT = config.get("viz_format", "both")
 VIZ_TOP_N = config.get("viz_top_n", 20)
@@ -30,34 +30,34 @@ VIZ_FILTER = config.get("viz_filter", None)
 
 rule summarize_rg4_detection:
     """
-    Summarize rG4detector detection output per transcript.
-    Computes peak-based, distribution, and density metrics.
+Summarize rG4detector detection output per transcript.
+Computes peak-based, distribution, and density metrics.
 
-    Parameters (configurable via --config):
-      - threshold_low: Score threshold for candidate rG4 peaks (default: 1.0)
-      - threshold_high: Score threshold for high-confidence rG4 peaks (default: 2.0)
-      - min_peak_prominence: Minimum peak prominence (default: 0.3)
-      - min_peak_width: Minimum peak width in nucleotides (default: 20)
-      - annotation_file: Optional BED file with feature annotations
-    """
+Parameters (configurable via --config):
+  - threshold_low: Score threshold for candidate rG4 peaks (default: 1.0)
+  - threshold_high: Score threshold for high-confidence rG4 peaks (default: 2.0)
+  - min_peak_prominence: Minimum peak prominence (default: 0.3)
+  - min_peak_width: Minimum peak width in nucleotides (default: 20)
+  - annotation_file: Optional BED file with feature annotations
+"""
     input:
-        detection_csv = "results/{sample}/detection.csv"
+        detection_csv="results/{sample}/rg4detector/detection.csv",
     output:
-        summary_csv = "results/{sample}/rg4_summary.csv"
-    params:
-        threshold_low = THRESHOLD_LOW,
-        threshold_high = THRESHOLD_HIGH,
-        min_peak_prominence = MIN_PEAK_PROMINENCE,
-        min_peak_width = MIN_PEAK_WIDTH,
-        annotation_file = ANNOTATION_FILE
+        summary_csv="results/{sample}/rg4detector/rg4_summary.csv",
     log:
-        "logs/{sample}/summarize_rg4_detection.log"
+        "logs/{sample}/rg4detector/summarize_rg4_detection.log",
     benchmark:
-        "benchmarks/{sample}/summarize_rg4_detection.tsv"
+        "benchmarks/{sample}/rg4detector/summarize_rg4_detection.tsv"
     resources:
         runtime=30,
-        mem_mb=1024*20,
-        cpus_per_task=1
+        mem_mb=1024 * 20,
+        cpus_per_task=1,
+    params:
+        threshold_low=THRESHOLD_LOW,
+        threshold_high=THRESHOLD_HIGH,
+        min_peak_prominence=MIN_PEAK_PROMINENCE,
+        min_peak_width=MIN_PEAK_WIDTH,
+        annotation_file=ANNOTATION_FILE,
     shell:
         """
         {{
@@ -80,40 +80,40 @@ rule summarize_rg4_detection:
 
 rule add_group_annotations:
     """
-    Add group annotations (e.g., protein-coding vs lncRNA) to rG4detector summary.
-    Enriches summary with external group/class labels.
+Add group annotations (e.g., protein-coding vs lncRNA) to rG4detector summary.
+Enriches summary with external group/class labels.
 
-    Parameters (configurable via --config):
-      - group_annotation_file: Annotation file path (TSV, CSV with ID column)
-      - group_annotation_id_column: Name of ID column in annotation file (auto-detect if not set)
-      - group_annotation_columns: Comma-separated columns to add (default: all)
-      - group_annotation_separator: Delimiter for annotation file (default: tab)
-      - group_annotation_keep_unmatched: Keep unmatched summary rows (default: False)
+Parameters (configurable via --config):
+  - group_annotation_file: Annotation file path (TSV, CSV with ID column)
+  - group_annotation_id_column: Name of ID column in annotation file (auto-detect if not set)
+  - group_annotation_columns: Comma-separated columns to add (default: all)
+  - group_annotation_separator: Delimiter for annotation file (default: tab)
+  - group_annotation_keep_unmatched: Keep unmatched summary rows (default: False)
 
-    Example annotation file (TSV):
-        seq_ID      group       biotype
-        TX001       protein     protein_coding
-        TX002       lncRNA      lncRNA
-    """
+Example annotation file (TSV):
+    seq_ID      group       biotype
+    TX001       protein     protein_coding
+    TX002       lncRNA      lncRNA
+"""
     input:
-        summary_csv = "results/{sample}/rg4_summary.csv",
-        annotation_file = GROUP_ANNOTATION_FILE if GROUP_ANNOTATION_FILE else []
+        summary_csv="results/{sample}/rg4detector/rg4_summary.csv",
+        annotation_file=GROUP_ANNOTATION_FILE if GROUP_ANNOTATION_FILE else [],
     output:
-        annotated_csv = "results/{sample}/rg4_summary_annotated.csv"
-    params:
-        annotation_file = GROUP_ANNOTATION_FILE,
-        id_column = GROUP_ANNOTATION_ID_COLUMN,
-        columns = GROUP_ANNOTATION_COLUMNS,
-        separator = GROUP_ANNOTATION_SEPARATOR,
-        keep_unmatched = GROUP_ANNOTATION_KEEP_UNMATCHED
+        annotated_csv="results/{sample}/rg4detector/rg4_summary_annotated.csv",
     log:
-        "logs/{sample}/add_group_annotations.log"
+        "logs/{sample}/rg4detector/add_group_annotations.log",
     benchmark:
-        "benchmarks/{sample}/add_group_annotations.tsv"
+        "benchmarks/{sample}/rg4detector/add_group_annotations.tsv"
     resources:
         runtime=10,
         mem_mb=2048,
-        cpus_per_task=1
+        cpus_per_task=1,
+    params:
+        annotation_file=GROUP_ANNOTATION_FILE,
+        id_column=GROUP_ANNOTATION_ID_COLUMN,
+        columns=GROUP_ANNOTATION_COLUMNS,
+        separator=GROUP_ANNOTATION_SEPARATOR,
+        keep_unmatched=GROUP_ANNOTATION_KEEP_UNMATCHED,
     shell:
         """
         {{
@@ -147,48 +147,48 @@ rule add_group_annotations:
 
 rule visualize_rg4_summary:
     """
-    Generate publication-quality visualizations from rG4detector summary.
-    Creates static PNG plots and interactive HTML dashboards.
-    Uses annotated summary if available, otherwise falls back to plain summary.
+Generate publication-quality visualizations from rG4detector summary.
+Creates static PNG plots and interactive HTML dashboards.
+Uses annotated summary if available, otherwise falls back to plain summary.
 
-    Parameters (configurable via --config):
-      - viz_output_dir: Output directory root (default: results/{sample}/viz)
-      - viz_plots: Plot types to generate (default: ["distributions", "ranking", "details"])
-      - viz_format: Output format - "static", "interactive", or "both" (default: both)
-      - viz_top_n: Number of top transcripts for ranking (default: 20)
-      - viz_metric: Metric for ranking (default: top_peak_score)
-        choices: top_peak_score, max_score, n_peaks_above_high, rg4_density_per_kb
-      - viz_dpi: DPI for PNG files (default: 300)
-      - viz_figsize: Figure size as "WxH" (default: 10x6)
-      - viz_class_col: Column name for class labels (default: real)
-      - viz_transcript_detail: Single transcript ID for detail view (optional)
-      - viz_filter: Filter string e.g. "n_peaks_above_high > 0" (optional)
-    """
+Parameters (configurable via --config):
+  - viz_output_dir: Output directory root (default: results/{sample}/viz)
+  - viz_plots: Plot types to generate (default: ["distributions", "ranking", "details"])
+  - viz_format: Output format - "static", "interactive", or "both" (default: both)
+  - viz_top_n: Number of top transcripts for ranking (default: 20)
+  - viz_metric: Metric for ranking (default: top_peak_score)
+    choices: top_peak_score, max_score, n_peaks_above_high, rg4_density_per_kb
+  - viz_dpi: DPI for PNG files (default: 300)
+  - viz_figsize: Figure size as "WxH" (default: 10x6)
+  - viz_class_col: Column name for class labels (default: real)
+  - viz_transcript_detail: Single transcript ID for detail view (optional)
+  - viz_filter: Filter string e.g. "n_peaks_above_high > 0" (optional)
+"""
     input:
-        summary_csv = "results/{sample}/rg4_summary_annotated.csv"
+        summary_csv="results/{sample}/rg4detector/rg4_summary_annotated.csv",
     output:
-        viz_marker = "results/{sample}/.viz_done"
+        viz_marker="results/{sample}/rg4detector/.viz_done",
+    log:
+        "logs/{sample}/rg4detector/visualize_rg4_summary.log",
+    benchmark:
+        "benchmarks/{sample}/rg4detector/visualize_rg4_summary.tsv"
     conda:
         "rg4_visualization"
-    params:
-        output_dir = VIZ_OUTPUT_DIR,
-        plots = VIZ_PLOTS,
-        format = VIZ_FORMAT,
-        top_n = VIZ_TOP_N,
-        metric = VIZ_METRIC,
-        dpi = VIZ_DPI,
-        figsize = VIZ_FIGSIZE,
-        class_col = VIZ_CLASS_COL,
-        transcript_detail = VIZ_TRANSCRIPT_DETAIL,
-        filter_str = VIZ_FILTER
-    log:
-        "logs/{sample}/visualize_rg4_summary.log"
-    benchmark:
-        "benchmarks/{sample}/visualize_rg4_summary.tsv"
     resources:
         runtime=10,
         mem_mb=2048,
-        cpus_per_task=2
+        cpus_per_task=2,
+    params:
+        output_dir=VIZ_OUTPUT_DIR,
+        plots=VIZ_PLOTS,
+        format=VIZ_FORMAT,
+        top_n=VIZ_TOP_N,
+        metric=VIZ_METRIC,
+        dpi=VIZ_DPI,
+        figsize=VIZ_FIGSIZE,
+        class_col=VIZ_CLASS_COL,
+        transcript_detail=VIZ_TRANSCRIPT_DETAIL,
+        filter_str=VIZ_FILTER,
     shell:
         """
         {{

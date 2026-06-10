@@ -23,13 +23,15 @@ Usage:
 Snakemake script: block usage (auto-detected via snakemake global):
     rule rg4_count_peaks:
         input:
-            detection = "results/{dataset}/detection.csv",
+            detection = "results/{dataset}/rg4detector/detection.csv",
             labels    = "data/{dataset}/labels.tsv"   # optional
         output:
-            counts = "results/{dataset}/peak_counts.csv",
-            stats  = "results/{dataset}/peak_stats.tsv"
+            counts = "results/{dataset}/rg4detector/peak_counts.csv",
+            stats  = "results/{dataset}/rg4detector/peak_stats.tsv"
         log:
-            "logs/rg4_count_peaks_{dataset}.log"
+            "logs/{dataset}/rg4_count_peaks.log"
+        benchmark:
+            "benchmarks/{dataset}/rg4_count_peaks.tsv"
         params:
             threshold = 1.56
         script:

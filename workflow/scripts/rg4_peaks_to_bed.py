@@ -23,11 +23,13 @@ Usage:
 Snakemake script block usage (auto-detected via snakemake global):
     rule rg4_peaks_to_bed:
         input:
-            detection = "results/{dataset}/detection.csv"
+            detection = "results/{dataset}/rg4detector/detection.csv"
         output:
-            bed = "results/{dataset}/peaks.bed"
+            bed = "results/{dataset}/rg4detector/peaks.bed"
         log:
-            "logs/rg4_peaks_to_bed_{dataset}.log"
+            "logs/{dataset}/rg4_peaks_to_bed.log"
+        benchmark:
+            "benchmarks/{dataset}/rg4_peaks_to_bed.tsv"
         params:
             threshold = 1.56,
             d = 0

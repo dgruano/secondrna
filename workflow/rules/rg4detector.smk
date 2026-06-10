@@ -4,16 +4,16 @@ from pathlib import Path
 
 rule rg4_setup:
     """
-    Clone rG4detector repository, create conda environment, and verify installation.
-    """
+Clone rG4detector repository, create conda environment, and verify installation.
+"""
     output:
-        marker = "results/.rg4_setup_done"
+        marker="results/.rg4_setup_done",
     log:
-        "logs/rg4_setup.log"
+        "logs/rg4detector/rg4_setup.log",
     resources:
         runtime=10,
         mem_mb=4096,
-        cpus_per_task=1
+        cpus_per_task=1,
     shell:
         """
         exec 2> {log}
@@ -38,30 +38,31 @@ rule rg4_setup:
 
 rule rg4_predict:
     """
-    Run rG4detector in prediction mode on input FASTA.
-    """
+Run rG4detector in prediction mode on input FASTA.
+"""
     input:
         #validated = "results/{sample}/.input_validated",
-        marker = "results/.rg4_setup_done",
-        input_fasta = "resources/input_{sample}.fa"
+        marker="results/.rg4_setup_done",
+        input_fasta="resources/input_{sample}.fa",
     output:
-        "results/{sample}/rG4detector_prediction.csv"
+        "results/{sample}/rg4detector/rG4detector_prediction.csv",
     log:
-        "logs/{sample}/rg4_predict.log"
+        "logs/{sample}/rg4detector/rg4_predict.log",
     benchmark:
-        "benchmarks/{sample}/rg4_predict.tsv"
+        "benchmarks/{sample}/rg4detector/rg4_predict.tsv"
     conda:
         #"../envs/rg4detector.yaml"
         "test_rg4"
     resources:
         runtime=120,
-        mem_mb=1024*12,
-        cpus_per_task=2
+        mem_mb=1024 * 12,
+        cpus_per_task=2,
     shell:
         """
         {{
             IN=$(realpath resources/input_{wildcards.sample}.fa)
-            OUT=$(realpath results/{wildcards.sample}/)
+            OUT=$(realpath results/{wildcards.sample}/rg4detector/)
+            mkdir -p $OUT
             echo "Running rG4detector prediction on $IN, outputting to $OUT"
             cd software/rG4detector/code
             python predict_fasta.py -f $IN -o $OUT
@@ -72,30 +73,31 @@ rule rg4_predict:
 
 rule rg4_detect:
     """
-    Run rG4detector in detection mode on input FASTA.
-    """
+Run rG4detector in detection mode on input FASTA.
+"""
     input:
         #validated = "results/{sample}/.input_validated",
-        marker = "results/.rg4_setup_done",
-        input_fasta = "resources/input_{sample}.fa"
+        marker="results/.rg4_setup_done",
+        input_fasta="resources/input_{sample}.fa",
     output:
-        "results/{sample}/detection.csv"
+        "results/{sample}/rg4detector/detection.csv",
     log:
-        "logs/{sample}/rg4_detect.log"
+        "logs/{sample}/rg4detector/rg4_detect.log",
     benchmark:
-        "benchmarks/{sample}/rg4_detect.tsv"
+        "benchmarks/{sample}/rg4detector/rg4_detect.tsv"
     conda:
         #"../envs/rg4detector.yaml"
         "test_rg4"
     resources:
         runtime=120,
-        mem_mb=1024*12,
-        cpus_per_task=2
+        mem_mb=1024 * 12,
+        cpus_per_task=2,
     shell:
         """
         {{
             IN=$(realpath resources/input_{wildcards.sample}.fa)
-            OUT=$(realpath results/{wildcards.sample}/)
+            OUT=$(realpath results/{wildcards.sample}/rg4detector/)
+            mkdir -p $OUT
             echo "Running rG4detector detection on $IN, outputting to $OUT"
             cd software/rG4detector/code
             python predict_fasta.py -d -f $IN -o $OUT
