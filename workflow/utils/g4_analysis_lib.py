@@ -162,15 +162,57 @@ def _threshold_filter(pqs_th: float, g4h_th: float) -> Callable:
     return _filter
 
 
-def build_subsets(union_df: pd.DataFrame) -> list[tuple[SubsetSpec, pd.DataFrame]]:
-    """Return list of (SubsetSpec, filtered_dataframe) for all 8 subsets."""
-    result: list[tuple[SubsetSpec, pd.DataFrame]] = [
-        (SubsetSpec("union", "Union (all motifs)"), union_df.copy()),
+def apply_g4d_threshold(
+    union_df: pd.DataFrame, pqs_th: float, g4h_th: float
+) -> pd.DataFrame:
+    """Return union_df filtered to G4D motifs passing thresholds + all rG4D-only motifs."""
+    return _threshold_filter(pqs_th, g4h_th)(union_df)
+
+
+def build_type_subsets(df: pd.DataFrame) -> list[tuple[SubsetSpec, pd.DataFrame]]:
+    """Fixed subsets derived from df by motif-type membership.
+
+    - union        : all motifs (G4D-only + rG4D-only + both)
+    - intersection : motifs detected by both tools
+    - all_g4d      : motifs predicted by G4D (G4D-only + both)
+    - g4d_only     : G4D motifs with no rG4D overlap
+    - all_rg4d     : motifs detected by rG4D (rG4D-only + both)
+    - rg4d_only    : rG4D motifs with no G4D overlap
+    """
+    return [
+        (SubsetSpec("union", "Union (all motifs)"), df.copy()),
+        (
+            SubsetSpec("intersection", "Intersection (both tools)"),
+            df[df["type"] == "both"].copy(),
+        ),
+        (
+            SubsetSpec("all_g4d", "All G4D motifs"),
+            df[df["type"] != "RG4D only"].copy(),
+        ),
+        (
+            SubsetSpec("g4d_only", "G4D-only motifs"),
+            df[df["type"] == "G4D only"].copy(),
+        ),
+        (
+            SubsetSpec("all_rg4d", "All rG4D motifs"),
+            df[df["type"] != "G4D only"].copy(),
+        ),
         (
             SubsetSpec("rg4d_only", "rG4D-only motifs"),
-            union_df[union_df["type"] == "RG4D only"].copy(),
+            df[df["type"] == "RG4D only"].copy(),
         ),
     ]
+
+
+def build_threshold_subsets(
+    union_df: pd.DataFrame,
+) -> list[tuple[SubsetSpec, pd.DataFrame]]:
+    """Threshold subsets: pqsfinder score + G4Hunter score filters on G4D motifs.
+
+    rG4D-only motifs are kept in every subset regardless of threshold.
+    Combinations: pqs in _PQS_THRESHOLDS × g4h in _G4H_THRESHOLDS.
+    """
+    result: list[tuple[SubsetSpec, pd.DataFrame]] = []
     for pqs_th in _PQS_THRESHOLDS:
         for g4h_th in _G4H_THRESHOLDS:
             name = f"pqs{pqs_th}_g4h{g4h_th}"
@@ -181,6 +223,11 @@ def build_subsets(union_df: pd.DataFrame) -> list[tuple[SubsetSpec, pd.DataFrame
     return result
 
 
+def build_subsets(union_df: pd.DataFrame) -> list[tuple[SubsetSpec, pd.DataFrame]]:
+    """All subsets: type-based (build_type_subsets) followed by threshold-based (build_threshold_subsets)."""
+    return build_type_subsets(union_df) + build_threshold_subsets(union_df)
+
+
 # ─── Analysis functions ────────────────────────────────────────────────────────
 def compute_aggregate_stats(df: pd.DataFrame) -> dict:
     """Return counts and overlap fractions for the motifs in df."""
@@ -189,6 +236,9 @@ def compute_aggregate_stats(df: pd.DataFrame) -> dict:
     n_rg4d_only = int((df["type"] == "RG4D only").sum())
     n_g4d = n_both + n_g4d_only
     n_rg4d = n_both + n_rg4d_only
+    g4d_df = df[df["type"] != "RG4D only"]
+    n_g4d_in_pc = int((g4d_df["real"] == True).sum())
+    n_g4d_in_lncrna = int((g4d_df["real"] == False).sum())
     return {
         "total": len(df),
         "both": n_both,
@@ -198,21 +248,32 @@ def compute_aggregate_stats(df: pd.DataFrame) -> dict:
         "rg4d_total": n_rg4d,
         "g4d_overlap_frac": n_both / n_g4d if n_g4d > 0 else 0.0,
         "rg4d_overlap_frac": n_both / n_rg4d if n_rg4d > 0 else 0.0,
+        "n_g4d_in_pc": n_g4d_in_pc,
+        "n_g4d_in_lncrna": n_g4d_in_lncrna,
+        "frac_g4d_in_pc": n_g4d_in_pc / n_g4d if n_g4d > 0 else 0.0,
+        "frac_g4d_in_lncrna": n_g4d_in_lncrna / n_g4d if n_g4d > 0 else 0.0,
+        "frac_g4d_in_annotated": (
+            (n_g4d_in_pc + n_g4d_in_lncrna) / n_g4d if n_g4d > 0 else 0.0
+        ),
     }
 
 
 def compute_coding_breakdown(df: pd.DataFrame) -> pd.DataFrame:
-    """Class-level summary: total G4D motifs and rG4D-overlap fraction by coding class."""
-    w_class = df.dropna(subset=["real"])
-    if w_class.empty:
+    """Class-level summary: total G4D motifs and rG4D-overlap fraction by coding class.
+
+    Includes an 'Unannotated' row for transcripts absent from the coding annotation.
+    """
+    if df.empty:
         return pd.DataFrame(
             columns=["Total motifs", "With rG4D overlap", "Overlap (%)"]
         )
     return (
-        w_class.groupby("real")
+        df.groupby("real", dropna=False)
         .agg(total_motifs=("overlaps", "count"), with_overlap=("overlaps", "sum"))
         .assign(overlap_frac=lambda d: d["with_overlap"] / d["total_motifs"] * 100)
-        .rename(index={True: "Protein-coding", False: "Non-coding"})
+        .rename(
+            index={True: "Protein-coding", False: "Non-coding", np.nan: "Unannotated"}
+        )
         .rename(
             columns={
                 "total_motifs": "Total motifs",
@@ -311,6 +372,9 @@ def compare_results(all_results: dict[str, dict]) -> pd.DataFrame:
                 "rg4d_total": agg["rg4d_total"],
                 "both": agg["both"],
                 "g4d_overlap_frac": agg["g4d_overlap_frac"],
+                "n_g4d_in_pc": agg["n_g4d_in_pc"],
+                "n_g4d_in_lncrna": agg["n_g4d_in_lncrna"],
+                "frac_g4d_in_annotated": agg["frac_g4d_in_annotated"],
                 "chi2": tst["chi2"],
                 "p_chi2": tst["p_chi2"],
                 "cramers_v": tst["cramers_v"],
