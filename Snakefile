@@ -17,6 +17,8 @@ include: "workflow/rules/rg4detector_summary.smk"
 include: "workflow/rules/rg4_summary_viz.smk"
 include: "workflow/rules/batch.smk"
 include: "workflow/rules/g4Discovery.smk"
+include: "workflow/rules/scanfold.smk"
+
 
 
 rule all:

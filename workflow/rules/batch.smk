@@ -15,7 +15,7 @@ def get_num_batches(input_fasta):
     return (num_sequences + BATCH_SIZE - 1) // BATCH_SIZE
 
 
-def get_batch_ids(sample):
+def get_batch_ids(sample, subdir="batches"):
     """
     Checkpoint function: determine batch IDs after split completes.
     Reads the manifest to find all batch IDs.
@@ -23,7 +23,7 @@ def get_batch_ids(sample):
     NOTE: IDs are determined by us, so we could infer them directly
     instead of reading the manifest.
     """
-    manifest_path = f"results/{sample}/batches/batch_manifest.txt"
+    manifest_path = f"results/{sample}/{subdir}/batch_manifest.txt"
     batch_ids = []
     try:
         with open(manifest_path) as f:
@@ -56,6 +56,34 @@ Creates batch FASTA files and manifest with sequence ID mapping.
         "logs/{sample}/split_fasta_batches.log",
     benchmark:
         "benchmarks/{sample}/split_fasta_batches.tsv"
+    conda:
+        "test_rg4"
+    resources:
+        runtime=10,
+        mem_mb=2048,
+        cpus_per_task=1,
+    params:
+        batch_size=BATCH_SIZE,
+    shell:
+        """
+        {{
+            python workflow/scripts/split_fasta.py {input.fasta} {output.batches} {params.batch_size}
+            touch {output.marker}
+        }} 2>&1 | tee {log}
+        """
+
+
+checkpoint scanfold_split_fasta_batches:
+    input:
+        fasta="resources/{sample}.fa",
+    output:
+        marker="results/{sample}/.scanfold_batches_created",
+        manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
+        batches=directory("results/{sample}/scanfold_batches/"),
+    log:
+        "logs/{sample}/scanfold_split_fasta_batches.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold_split_fasta_batches.tsv"
     conda:
         "test_rg4"
     resources:
