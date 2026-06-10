@@ -41,7 +41,6 @@ rule rg4_predict:
 Run rG4detector in prediction mode on input FASTA.
 """
     input:
-        #validated = "results/{sample}/.input_validated",
         marker="results/.rg4_setup_done",
         input_fasta="resources/input_{sample}.fa",
     output:
@@ -76,7 +75,6 @@ rule rg4_detect:
 Run rG4detector in detection mode on input FASTA.
 """
     input:
-        #validated = "results/{sample}/.input_validated",
         marker="results/.rg4_setup_done",
         input_fasta="resources/input_{sample}.fa",
     output:
