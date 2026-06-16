@@ -9,7 +9,7 @@
 ## Problem
 
 The retry workflow splits failed batches into sub-batches of ≤100 sequences and re-runs them on
-the GPU. Some sub-batches still fail because they contain at least one pathologically long
+CPU. Some sub-batches still fail because they contain at least one pathologically long
 transcript that exhausts memory or exceeds the job time limit, blocking all other sequences in
 the batch. The two observed failure modes are OOM kill (`batch_00016_retry_00000`, 347k nt) and
 O(n²) timeout (`batch_00002_retry_00000`, three ~100k nt sequences).
@@ -20,8 +20,8 @@ O(n²) timeout (`batch_00002_retry_00000`, three ~100k nt sequences).
 
 Extend the **existing** `scanfold_split_retry_batches` checkpoint to be length-aware. Long
 sequences are routed out of the retry sub-batches into a separate `scanfold_oversized_batches/`
-directory before the GPU retry jobs run. Each oversized sequence gets its own single-sequence
-FASTA and is processed by a new CPU highmem rule rather than a GPU batch rule.
+directory before the retry jobs run. Each oversized sequence gets its own single-sequence
+FASTA and is processed by a dedicated highmem rule rather than a standard retry batch rule.
 
 ```
 scanfold_batches/           (original, ≤N seqs each)
@@ -29,7 +29,7 @@ scanfold_batches/           (original, ≤N seqs each)
         ▼
 scanfold_split_retry_batches  (checkpoint — modified)
         │
-        ├── seq_len ≤ MAX_LEN ──► scanfold_retry_batches/   → scanfold2_run_gpu_retry_batch
+        ├── seq_len ≤ MAX_LEN ──► scanfold_retry_batches/   → scanfold2_run_retry_batch (CPU)
         │
         └── seq_len > MAX_LEN ──► scanfold_oversized_batches/ → scanfold2_run_oversized (CPU)
                                    scanfold_oversized_skip.tsv
@@ -105,6 +105,8 @@ output:
 params:
     subbatch_size = SCANFOLD_RETRY_SUBBATCH_SIZE,
     max_seq_len   = SCANFOLD_OVERSIZED_MAX_LEN,    # NEW
+resources:
+    cpus_per_task = 1,                             # NEW
 ```
 
 Shell call gains `--max-seq-len {params.max_seq_len}` and
@@ -121,7 +123,7 @@ rule scanfold2_run_oversized:
     output:
         out = "results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
     conda:
-        "../envs/scanfold2_gpu.yaml"
+        "../envs/scanfold2.yaml"
     resources:
         runtime          = "5d",
         mem_mb           = 262_144,   # 256 GB
@@ -178,14 +180,15 @@ rule scanfold2_oversized_all:
 
 The retry checkpoint already does the right thing: it scans for pending sequences across all
 original batches and writes sub-batch FASTAs. Adding length routing here means oversized
-sequences are isolated before any GPU retry job is submitted, so they never block a batch.
+sequences are isolated before any retry job is submitted, so they never block a batch.
 A separate tertiary checkpoint would require another round of job submission and waiting.
 
-### Why CPU for oversized sequences
+### Why highmem for oversized sequences
 
 The bottleneck for ultra-long sequences is the ScanFold-Fold partner detection loop (O(n²)),
 not TensorFlow inference. A high-memory CPU node covers the RAM requirement (≥256 GB for
-100k–200k nt) without wasting a GPU allocation.
+100k–200k nt) and avoids tying up a long-running job on a standard partition with its shorter
+time limits.
 
 ### Why 20,000 nt threshold
 
@@ -198,6 +201,15 @@ a single sequence at 100k nt takes ~14 h. The threshold is exposed as
 Each oversized sequence gets a batch ID derived from its source batch ID and a zero-padded
 index (e.g., `00002_retry_00000_oversized_00000`). This keeps the naming consistent with
 existing patterns and avoids collisions when multiple batches contribute oversized sequences.
+Sequence IDs that contain characters invalid in filenames (e.g., `/`, `|`) must be sanitised
+(replace with `_`) before use as a batch ID component.
+
+### Known limitation: summarize does not glob `scanfold2_oversized/`
+
+`scanfold_summarize.py` is not changed in this implementation. Oversized sequences will not
+appear in the final `scanfold_stats.tsv` unless the summarize step is updated in a follow-up
+to also read CT files from `scanfold2_oversized/`. The `scanfold_oversized_skip.tsv` file
+provides a record of which sequences were skipped.
 
 ---
 
