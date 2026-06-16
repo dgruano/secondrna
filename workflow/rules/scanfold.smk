@@ -182,12 +182,12 @@ rule scanfold2_run_gpu:
     conda:
         "../envs/scanfold2_gpu.yaml"
     resources:
-        runtime=1440,
-        mem_mb=6000,
+        runtime="2d",
+        mem_mb=10000,
         slurm_partition="gpu",
         gres="gpu:nvidia_h100_nvl_1g.12gb",
         ntasks_per_gpu=0,
-        cpus_per_gpu=4,
+        cpus_per_gpu=1,
     params:
         window=120,
         step=1,
@@ -229,6 +229,9 @@ rule scanfold2_run_gpu:
         """
 
 
+SCANFOLD_RETRY_SUBBATCH_SIZE = config.get("scanfold_retry_subbatch_size", 100)
+
+
 def get_scanfold_gpu_batches(wc):
     """Collect per-batch ScanFold GPU log files from checkpoint."""
     checkpoints.scanfold_split_fasta_batches.get(sample=wc.sample)
@@ -255,5 +258,69 @@ use rule scanfold2_run_gpu as scanfold2_run_gpu_batch with:
 rule scanfold2_gpu_all:
     input:
         lambda wc: get_scanfold_gpu_batches(
+            type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
+        ),
+
+
+# ---------------------------------------------------------------------------
+# Retry workflow: auto-detect incomplete batches and re-run in sub-batches
+# ---------------------------------------------------------------------------
+
+
+checkpoint scanfold_split_retry_batches:
+    """Scan all original batches for incomplete sequences and split into sub-batches."""
+    input:
+        "results/{sample}/scanfold_batches/batch_manifest.txt",
+    output:
+        manifest="results/{sample}/scanfold_retry_batches/batch_manifest.txt",
+        batches=directory("results/{sample}/scanfold_retry_batches/"),
+    log:
+        "logs/{sample}/scanfold2/split_retry_batches.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold2/split_retry_batches.tsv"
+    resources:
+        runtime=10,
+        mem_mb=2048,
+    params:
+        subbatch_size=SCANFOLD_RETRY_SUBBATCH_SIZE,
+    shell:
+        """
+        {{
+        python workflow/scripts/check_scanfold_partial.py \
+            --sample {wildcards.sample} \
+            --subbatch-size {params.subbatch_size} \
+            --write-fasta \
+            --out-dir results/{wildcards.sample}/scanfold_retry_batches \
+            --results-dir results
+        }} >{log} 2>&1
+        """
+
+
+def get_scanfold_retry_gpu_batches(wc):
+    """Collect retry sub-batch log files after the retry split checkpoint resolves."""
+    checkpoints.scanfold_split_retry_batches.get(sample=wc.sample)
+    batch_ids = get_batch_ids(wc.sample, subdir="scanfold_retry_batches")
+    return expand(
+        "results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+        sample=wc.sample,
+        batch_id=batch_ids,
+    )
+
+
+use rule scanfold2_run_gpu_batch as scanfold2_run_gpu_retry_batch with:
+    input:
+        flag="software/ScanFold2.0/installed.txt",
+        fasta="results/{sample}/scanfold_retry_batches/batch_{batch_id}.fa",
+    output:
+        out="results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+    log:
+        "logs/{sample}/scanfold2_gpu/retry_{batch_id}.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold2_gpu/retry_{batch_id}.tsv"
+
+
+rule scanfold2_retry_all:
+    input:
+        lambda wc: get_scanfold_retry_gpu_batches(
             type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
         ),
