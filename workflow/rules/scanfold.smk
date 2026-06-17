@@ -230,6 +230,7 @@ rule scanfold2_run_gpu:
 
 
 SCANFOLD_RETRY_SUBBATCH_SIZE = config.get("scanfold_retry_subbatch_size", 100)
+SCANFOLD_OVERSIZED_MAX_LEN = config.get("scanfold_oversized_max_len", 20_000)
 
 
 def get_scanfold_gpu_batches(wc):
@@ -274,6 +275,9 @@ checkpoint scanfold_split_retry_batches:
     output:
         manifest="results/{sample}/scanfold_retry_batches/batch_manifest.txt",
         batches=directory("results/{sample}/scanfold_retry_batches/"),
+        oversized_manifest="results/{sample}/scanfold_oversized_batches/batch_manifest.txt",
+        oversized_batches=directory("results/{sample}/scanfold_oversized_batches/"),
+        skip_tsv="results/{sample}/scanfold_oversized_skip.tsv",
     log:
         "logs/{sample}/scanfold2/split_retry_batches.log",
     benchmark:
@@ -281,16 +285,20 @@ checkpoint scanfold_split_retry_batches:
     resources:
         runtime=10,
         mem_mb=2048,
+        cpus_per_task=1,
     params:
         subbatch_size=SCANFOLD_RETRY_SUBBATCH_SIZE,
+        max_seq_len=SCANFOLD_OVERSIZED_MAX_LEN,
     shell:
         """
         {{
         python workflow/scripts/check_scanfold_partial.py \
             --sample {wildcards.sample} \
             --subbatch-size {params.subbatch_size} \
+            --max-seq-len {params.max_seq_len} \
             --write-fasta \
             --out-dir results/{wildcards.sample}/scanfold_retry_batches \
+            --oversized-dir results/{wildcards.sample}/scanfold_oversized_batches \
             --results-dir results
         }} >{log} 2>&1
         """
@@ -323,4 +331,105 @@ rule scanfold2_retry_all:
     input:
         lambda wc: get_scanfold_retry_gpu_batches(
             type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
+        ),
+
+
+# ---------------------------------------------------------------------------
+# Oversized fallback: single-sequence highmem CPU jobs
+# ---------------------------------------------------------------------------
+
+
+rule scanfold2_run_oversized:
+    """Process a single ultra-long sequence on a high-memory CPU node."""
+    input:
+        flag="software/ScanFold2.0/installed.txt",
+        fasta="results/{sample}/scanfold_oversized_batches/batch_{batch_id}.fa",
+    output:
+        out="results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
+    log:
+        "logs/{sample}/scanfold2_oversized/{batch_id}.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold2_oversized/{batch_id}.tsv"
+    conda:
+        "scanfold2"
+    resources:
+        runtime="7d",
+        mem_mb=50_000,  # Got OOM with a 370k nt sequence and 10 GB RAM 12 GB VRAM. 50 should do
+        cpus_per_task=1,
+    params:
+        window=120,
+        step=1,
+        temperature=37,
+        shuffle="mono",
+        folder=lambda wc, output: os.path.dirname(output.out),
+    shell:
+        """
+        {{
+        input_fasta="$(realpath {input.fasta})"
+        output_folder=$(realpath {params.folder})
+        cd software/ScanFold2.0
+        python ScanFold2.0.py $input_fasta \
+            -w {params.window} -s {params.step} \
+            -t {params.temperature} --shuffle {params.shuffle} \
+            --folder $output_folder
+        }} >{log} 2>&1
+        """
+
+
+def get_scanfold_oversized_batches(wc):
+    checkpoints.scanfold_split_retry_batches.get(sample=wc.sample)
+    batch_ids = get_batch_ids(wc.sample, subdir="scanfold_oversized_batches")
+    return expand(
+        "results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
+        sample=wc.sample,
+        batch_id=batch_ids,
+    )
+
+
+rule scanfold2_oversized_all:
+    input:
+        lambda wc: get_scanfold_oversized_batches(
+            type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
+        ),
+
+
+# ---------------------------------------------------------------------------
+# Completeness validation: confirm every sequence has a .no_filter.ct output
+# ---------------------------------------------------------------------------
+
+
+def get_all_scanfold_batch_outputs(wc):
+    """Aggregate log files from all three ScanFold batch stages."""
+    return (
+        get_scanfold_gpu_batches(wc)
+        + get_scanfold_retry_gpu_batches(wc)
+        + get_scanfold_oversized_batches(wc)
+    )
+
+
+rule scanfold2_check_complete:
+    """Validate all original sequences have .no_filter.ct outputs across all batch stages."""
+    input:
+        batch_logs=get_all_scanfold_batch_outputs,
+        manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
+    output:
+        report="results/{sample}/scanfold2/completeness_check.tsv",
+    log:
+        "logs/{sample}/scanfold2/check_complete.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold2/check_complete.tsv"
+    resources:
+        runtime=10,
+        mem_mb=2048,
+    params:
+        results_dir="results",
+    script:
+        "../scripts/check_scanfold_complete.py"
+
+
+rule scanfold2_validate_all:
+    input:
+        expand(
+            "results/{sample}/scanfold2/completeness_check.tsv",
+            sample=["gencode.v47.repeat.simple"],
         ),
