@@ -119,7 +119,11 @@ def parse_args(argv=None):
 
 
 def count_peaks(detection_path, threshold, logger):
-    """Stream detection.csv and return per-transcript counts DataFrame."""
+    """
+    Stream detection.csv and return per-transcript counts DataFrame
+    with additional per-transcript statistics.
+
+    """
     records = []
     n = 0
     for transcript_id, scores in stream_detection(detection_path):
@@ -128,7 +132,15 @@ def count_peaks(detection_path, threshold, logger):
             {
                 "transcript_id": transcript_id,
                 "transcript_length": len(scores),
-                "peak_count": len(peaks),
+                "rg4_peak_count": len(peaks),
+                "rg4_peak_density": (
+                    len(peaks) / len(scores) if len(scores) > 0 else 0.0
+                ),
+                "rg4_peak_rel_position": (
+                    (sum(p / len(scores) for p in peaks) / len(peaks))
+                    if len(peaks) > 0
+                    else -1.0
+                ),
             }
         )
         n += 1
@@ -136,8 +148,33 @@ def count_peaks(detection_path, threshold, logger):
             logger.info(f"Processed {n:,} transcripts ...")
     logger.info(f"Finished: {n:,} transcripts total")
     df = pd.DataFrame(records)
-    df["has_peak"] = df["peak_count"] > 0
+    df["has_peak"] = df["rg4_peak_count"] > 0
     return df
+
+
+def per_bin_stats(peaks, n_bins=10):
+    """
+    Per-transcript do:
+        - Cut transcript in 10 equal-length bins
+        - Compute peak count/density per bin
+        - Return data
+    Args:
+        peaks: list of peak positions (0-based)
+        n_bins: number of bins to divide transcript into
+    Returns:
+        bin_counts: list of counts per bin
+        bin_densities: list of densities per bin
+
+    NOTE: Preliminary function, not used for now.
+    """
+    if len(peaks) == 0:
+        return [0] * n_bins, [0.0] * n_bins
+    max_pos = max(peaks)
+    bin_edges = np.linspace(0, max_pos + 1, n_bins + 1)
+    bin_counts, _ = np.histogram(peaks, bins=bin_edges)
+    bin_lengths = np.diff(bin_edges)
+    bin_densities = bin_counts / bin_lengths
+    return bin_counts.tolist(), bin_densities.tolist()
 
 
 def global_stats(df):
@@ -146,9 +183,9 @@ def global_stats(df):
         ("n_transcripts", len(df)),
         ("n_with_peaks", int(df["has_peak"].sum())),
         ("frac_with_peaks", round(df["has_peak"].mean(), 6)),
-        ("mean_peak_count", round(df["peak_count"].mean(), 4)),
-        ("median_peak_count", round(df["peak_count"].median(), 4)),
-        ("max_peak_count", int(df["peak_count"].max())),
+        ("mean_peak_count", round(df["rg4_peak_count"].mean(), 4)),
+        ("median_peak_count", round(df["rg4_peak_count"].median(), 4)),
+        ("max_peak_count", int(df["rg4_peak_count"].max())),
         ("mean_transcript_length", round(df["transcript_length"].mean(), 1)),
     ]
     return rows
@@ -198,8 +235,8 @@ def class_association_stats(df, labels_path, logger):
         or_note = ""
 
     # Mann-Whitney U: peak_count by real
-    peak_true = merged.loc[merged["real"], "peak_count"]
-    peak_false = merged.loc[~merged["real"], "peak_count"]
+    peak_true = merged.loc[merged["real"], "rg4_peak_count"]
+    peak_false = merged.loc[~merged["real"], "rg4_peak_count"]
     u_stat, p_mwu = mannwhitneyu(peak_true, peak_false, alternative="two-sided")
     vda = u_stat / (len(peak_true) * len(peak_false))
 

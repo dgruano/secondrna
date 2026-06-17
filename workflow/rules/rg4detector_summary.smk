@@ -26,6 +26,8 @@ Parameters (configurable via --config):
         "logs/{sample}/rg4detector/rg4_count_peaks.log",
     benchmark:
         "benchmarks/{sample}/rg4detector/rg4_count_peaks.tsv"
+    conda:
+        "lnc-datasets"
     resources:
         runtime=30,
         mem_mb=1024 * 10,
