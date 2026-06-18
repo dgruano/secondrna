@@ -198,7 +198,7 @@ rule scanfold2_run_gpu:
         """
         {{
         # GPU-related setup
-        echo "Starting lncRNA-BERT training"
+        echo "Starting ScanFold2.0 (GPU) run for sample: {wildcards.sample}"
         echo "GPU Info:"
         echo "Available physical GPUs:"
         nvidia-smi --query-gpu=index,platform.module_id,name,driver_version,memory.total,compute_cap,mig.mode.current --format=csv
@@ -433,3 +433,25 @@ rule scanfold2_validate_all:
             "results/{sample}/scanfold2/completeness_check.tsv",
             sample=["gencode.v47.repeat.simple"],
         ),
+
+
+rule scanfold2_summarize_final_partners:
+    """Compute per-transcript FinalPartners stats from directories defined in config.
+Runs independently of the main DAG — trigger with:
+    snakemake scanfold2_summarize_final_partners --profile profiles/default
+"""
+    input:
+        dirs=config["final_partners_dirs"],
+    output:
+        config["final_partners_output"],
+    log:
+        "logs/scanfold2/summarize_final_partners.log",
+    benchmark:
+        "benchmarks/scanfold2/summarize_final_partners.tsv"
+    resources:
+        runtime=60,
+        mem_mb=16384,
+    params:
+        n_bins=config.get("final_partners_n_bins", 10),
+    script:
+        "../scripts/summarize_scanfold_final_partners.py"

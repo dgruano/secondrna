@@ -4,6 +4,12 @@
 # Batch Processing Parameters
 batch_size: 1000  # Sequences per batch for rG4detector
 
+# FinalPartners Summarization (standalone, outside main DAG)
+final_partners_dirs:
+  - "/mnt/cbib/LNClassifier/RNA_ScanFold2.0"
+final_partners_output: "results/scanfold_final_partners_stats.tsv"
+final_partners_n_bins: 10
+
 # Summarization Parameters
 peak_threshold: 1.56  # Score threshold for simple peak counting (rg4_count_peaks)
 threshold_low: 1.0  # Score threshold for candidate rG4 peaks
