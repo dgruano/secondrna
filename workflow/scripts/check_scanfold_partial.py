@@ -23,6 +23,7 @@ Usage (from Snakemake checkpoint):
 """
 
 import argparse
+import hashlib
 import math
 import re
 from pathlib import Path
@@ -139,13 +140,30 @@ def write_batch_manifest(out_dir: Path, entries: list[tuple[str, list[str]]]) ->
             f.write(f"{batch_id}\t{len(seq_ids)}\t{','.join(seq_ids)}\n")
 
 
+def _ct_seq_ids(ct_path: Path) -> set[str]:
+    """Parse CT file header lines (length<TAB>seq_id) to extract sequence IDs."""
+    ids = set()
+    with open(ct_path) as f:
+        for line in f:
+            parts = line.split("\t", 1)
+            if len(parts) == 2 and parts[0].strip().isdigit():
+                ids.add(parts[1].strip())
+    return ids
+
+
 def get_completed_ids(result_dir: Path, batch_id: str) -> set[str]:
     prefix = f"batch_{batch_id}."
     suffix = ".no_filter.ct"
-    return {
+    ids = {
         p.name[len(prefix) : -len(suffix)]
         for p in result_dir.glob(f"{prefix}*.no_filter.ct")
     }
+    if not ids:
+        # ponytail: single-seq batches write only batch_{id}.no_filter.ct, no per-seq files
+        batch_ct = result_dir / f"batch_{batch_id}.no_filter.ct"
+        if batch_ct.exists():
+            ids = _ct_seq_ids(batch_ct)
+    return ids
 
 
 def check_batch(batch_id: str, batches_dir: Path, gpu_dir: Path) -> dict:
@@ -157,18 +175,15 @@ def check_batch(batch_id: str, batches_dir: Path, gpu_dir: Path) -> dict:
 
     all_ids = get_fasta_ids(fasta)
 
-    if not result_dir.exists():
-        # Batch never ran at all
-        return {
-            "batch_id": batch_id,
-            "fasta": fasta,
-            "total": len(all_ids),
-            "completed": 0,
-            "pending": len(all_ids),
-            "pending_ids": all_ids,
-        }
+    # Collect completions from the original dir and any retry/oversized sub-dirs.
+    completed = (
+        get_completed_ids(result_dir, batch_id) if result_dir.exists() else set()
+    )
+    for d in gpu_dir.glob(f"batch_{batch_id}_*"):
+        if d.is_dir():
+            sub_id = d.name[len("batch_") :]
+            completed |= get_completed_ids(d, sub_id)
 
-    completed = get_completed_ids(result_dir, batch_id)
     pending = [seq_id for seq_id in all_ids if seq_id not in completed]
 
     return {
@@ -204,7 +219,9 @@ def write_subbatches(
 
     for i in range(n_subbatches):
         chunk = pending_ids[i * subbatch_size : (i + 1) * subbatch_size]
-        subbatch_id = f"{batch_id}_retry_{i:05d}"
+        # ponytail: hash of seq IDs so the ID is stable across checkpoint re-runs
+        chunk_hash = hashlib.sha1("\n".join(chunk).encode()).hexdigest()[:8]
+        subbatch_id = f"{batch_id}_retry_{chunk_hash}"
         out_path = out_dir / f"batch_{subbatch_id}.fa"
         extract_sequences(source_fasta, set(chunk), out_path)
         results.append((subbatch_id, chunk, out_path))
@@ -228,6 +245,14 @@ def main():
         metavar="BATCH_ID",
         help="Batch IDs to check. If omitted, all batches in the original "
         "manifest are scanned and incomplete ones are auto-selected.",
+    )
+    parser.add_argument(
+        "--exclude-batches",
+        nargs="+",
+        default=None,
+        metavar="BATCH_ID",
+        help="Batch IDs to skip (e.g. ones still running on SLURM). "
+        "Use get_running_scanfold_batches.sh to generate this list.",
     )
     parser.add_argument(
         "--sample",
@@ -291,7 +316,7 @@ def main():
 
     sample_dir = args.results_dir / args.sample
     batches_dir = sample_dir / "scanfold_batches"
-    gpu_dir = sample_dir / "scanfold2_gpu"
+    gpu_dir = sample_dir / "scanfold2"
     out_dir = args.out_dir or args.results_dir / "scanfold_retry_batches"
 
     # --- Resolve which batch IDs to check ---
@@ -309,6 +334,12 @@ def main():
         batch_ids = read_batch_manifest(manifest)
         print(f"Sample : {args.sample}")
         print(f"Batches: auto-detected {len(batch_ids)} from manifest")
+
+    excluded = set(args.exclude_batches) if args.exclude_batches else set()
+    if excluded:
+        before = len(batch_ids)
+        batch_ids = [b for b in batch_ids if b not in excluded]
+        print(f"Excluded (still running): {before - len(batch_ids)} batches")
     print()
 
     # --- Check each batch and collect incomplete ones ---

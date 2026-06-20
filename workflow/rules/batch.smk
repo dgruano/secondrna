@@ -80,6 +80,9 @@ checkpoint scanfold_split_fasta_batches:
         marker="results/{sample}/.scanfold_batches_created",
         manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
         batches=directory("results/{sample}/scanfold_batches/"),
+        oversized_manifest="results/{sample}/scanfold_oversized_batches/batch_manifest.txt",
+        oversized_batches=directory("results/{sample}/scanfold_oversized_batches/"),
+        skip_tsv="results/{sample}/scanfold_oversized_skip.tsv",
     log:
         "logs/{sample}/scanfold_split_fasta_batches.log",
     benchmark:
@@ -92,10 +95,13 @@ checkpoint scanfold_split_fasta_batches:
         cpus_per_task=1,
     params:
         batch_size=BATCH_SIZE,
+        max_seq_len=config.get("scanfold_oversized_max_len", 20_000),
     shell:
         """
         {{
-            python workflow/scripts/split_fasta.py {input.fasta} {output.batches} {params.batch_size}
+            python workflow/scripts/split_fasta.py {input.fasta} {output.batches} {params.batch_size} \
+                --max-seq-len {params.max_seq_len} \
+                --oversized-dir {output.oversized_batches}
             touch {output.marker}
         }} 2>&1 | tee {log}
         """

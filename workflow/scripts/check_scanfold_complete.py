@@ -3,9 +3,9 @@
 Validate that every sequence in the original ScanFold batch manifest
 has a corresponding .no_filter.ct output file.
 
-Scans results/{sample}/scanfold2_gpu/ and results/{sample}/scanfold2_oversized/
-to find completed sequences, then cross-references against the original
-batch manifest.
+Scans results/{sample}/scanfold2/, results/{sample}/scanfold2_oversized/, and
+results/{sample}/scanfold2_gpu/ (GPU flat output, if present) to find completed
+sequences, then cross-references against the original batch manifest.
 
 Writes a TSV report (seq_id, original_batch_id, status) and exits with
 code 1 if any sequences are missing.
@@ -58,20 +58,37 @@ def read_manifest(manifest_path: Path) -> dict[str, str]:
     return seq_to_batch
 
 
+def _ct_seq_ids(ct_path: Path) -> set[str]:
+    """Parse CT file header lines (length<TAB>seq_id) to extract sequence IDs."""
+    ids = set()
+    with open(ct_path) as f:
+        for line in f:
+            parts = line.split("\t", 1)
+            if len(parts) == 2 and parts[0].strip().isdigit():
+                ids.add(parts[1].strip())
+    return ids
+
+
 def get_completed_ids(result_dir: Path, batch_id: str) -> set[str]:
     """Return seq_ids with .no_filter.ct files in a batch result directory."""
     prefix = f"batch_{batch_id}."
     suffix = ".no_filter.ct"
-    return {
+    ids = {
         p.name[len(prefix) : -len(suffix)]
         for p in result_dir.glob(f"{prefix}*.no_filter.ct")
     }
+    if not ids:
+        # ponytail: single-seq batches write only batch_{id}.no_filter.ct, no per-seq files
+        batch_ct = result_dir / f"batch_{batch_id}.no_filter.ct"
+        if batch_ct.exists():
+            ids = _ct_seq_ids(batch_ct)
+    return ids
 
 
 def collect_all_completed(sample_dir: Path) -> set[str]:
-    """Walk scanfold2_gpu/ and scanfold2_oversized/ and collect all completed seq_ids."""
+    """Walk scanfold2/, scanfold2_oversized/, and scanfold2_gpu/ to collect all completed seq_ids."""
     completed: set[str] = set()
-    for subdir_name in ("scanfold2_gpu", "scanfold2_oversized"):
+    for subdir_name in ("scanfold2", "scanfold2_oversized"):
         result_dir = sample_dir / subdir_name
         if not result_dir.exists():
             logging.info("Result directory not found (skipping): %s", result_dir)
@@ -81,6 +98,13 @@ def collect_all_completed(sample_dir: Path) -> set[str]:
                 continue
             batch_id = batch_dir.name[len("batch_") :]
             ids = get_completed_ids(batch_dir, batch_id)
+            completed.update(ids)
+    # GPU output: flat dir (no batch_* subdirs), parse CT headers directly
+    gpu_dir = sample_dir / "scanfold2_gpu"
+    if gpu_dir.exists():
+        for ct_file in sorted(gpu_dir.rglob("*.no_filter.ct")):
+            ids = _ct_seq_ids(ct_file)
+            logging.info("GPU CT file %s: %d sequences", ct_file.name, len(ids))
             completed.update(ids)
     return completed
 

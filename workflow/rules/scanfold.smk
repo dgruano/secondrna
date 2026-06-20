@@ -5,7 +5,7 @@ def reduce_fasta_headers(input_file, output_file):
 rule scanfold2_all:
     input:
         expand(
-            "results/{sample}/scanfold2/{sample}.no_filter.ct",
+            "results/{sample}/scanfold2/ScanFold_run.log",
             sample=["gencode.v47"],
         ),
 
@@ -120,19 +120,14 @@ rule scanfold2_run:
         flag="software/ScanFold2.0/installed.txt",
         fasta="resources/{sample}.fa",
     output:
-        no_filter_ct="results/{sample}/scanfold2/{sample}.no_filter.ct",
-        minus1_ct="results/{sample}/scanfold2/{sample}.minus_1.ct",
-        minus2_ct="results/{sample}/scanfold2/{sample}.minus_2.ct",
-        no_filter_dbn="results/{sample}/scanfold2/{sample}.no_filter.dbn",
-        minus1_dbn="results/{sample}/scanfold2/{sample}.minus_1.dbn",
-        minus2_dbn="results/{sample}/scanfold2/{sample}.minus_2.dbn",
+        out="results/{sample}/scanfold2/ScanFold_run.log",
     log:
         "logs/{sample}/scanfold2/run.log",
     benchmark:
         "benchmarks/{sample}/scanfold2/run.txt"
     conda:
         "scanfold2"
-    threads: 4
+    threads: 1
     resources:
         runtime=1440,
         mem_mb=2048,
@@ -141,7 +136,7 @@ rule scanfold2_run:
         step=1,
         temperature=37,
         shuffle="mono",
-        folder=lambda wc, output: os.path.dirname(output.no_filter_ct),
+        folder=lambda wc, output: os.path.dirname(output.out),
     shell:
         """
         {{
@@ -169,97 +164,48 @@ rule scanfold2_run:
         """
 
 
-rule scanfold2_run_gpu:
-    input:
-        flag="software/ScanFold2.0/installed.txt",
-        fasta="resources/{sample}.fa",
-    output:
-        out="results/{sample}/scanfold2_gpu/ScanFold_run.log",
-    log:
-        "logs/{sample}/scanfold2_gpu/run.log",
-    benchmark:
-        "benchmarks/{sample}/scanfold2_gpu/run.txt"
-    conda:
-        "../envs/scanfold2_gpu.yaml"
-    resources:
-        runtime="2d",
-        mem_mb=10000,
-        slurm_partition="gpu",
-        gres="gpu:nvidia_h100_nvl_1g.12gb",
-        ntasks_per_gpu=0,
-        cpus_per_gpu=1,
-    params:
-        window=120,
-        step=1,
-        temperature=37,
-        shuffle="mono",
-        folder=lambda wc, output: os.path.dirname(output.out),
-    shell:
-        """
-        {{
-        # GPU-related setup
-        echo "Starting ScanFold2.0 (GPU) run for sample: {wildcards.sample}"
-        echo "GPU Info:"
-        echo "Available physical GPUs:"
-        nvidia-smi --query-gpu=index,platform.module_id,name,driver_version,memory.total,compute_cap,mig.mode.current --format=csv
-        echo "Available MIG devices:"
-        nvidia-smi -L | grep -i mig || echo "No MIG devices found"
-
-        input_fasta="$(realpath {input.fasta})"
-        output_folder=$(realpath {params.folder})
-        cd software/ScanFold2.0
-        echo "Running ScanFold2.0 (GPU) with the following parameters:"
-        echo "------------------------------------------------------------"
-        echo "Input FASTA: $input_fasta"
-        echo "Window size: {params.window}"
-        echo "Step size: {params.step}"
-        echo "Temperature: {params.temperature}°C"
-        echo "Shuffle method: {params.shuffle}"
-        echo "Output folder: $output_folder"
-        echo "------------------------------------------------------------"
-
-        python ScanFold2.0.py $input_fasta\
-        -w {params.window}\
-        -s {params.step}\
-        -t {params.temperature}\
-        --shuffle {params.shuffle}\
-        --folder $output_folder
-        echo "ScanFold2.0 (GPU) run completed. Results saved to $output_folder"
-        }} >{log} 2>&1
-        """
-
-
 SCANFOLD_RETRY_SUBBATCH_SIZE = config.get("scanfold_retry_subbatch_size", 100)
-SCANFOLD_OVERSIZED_MAX_LEN = config.get("scanfold_oversized_max_len", 20_000)
 
 
-def get_scanfold_gpu_batches(wc):
-    """Collect per-batch ScanFold GPU log files from checkpoint."""
+def get_scanfold_batches(wc):
+    """Collect per-batch ScanFold log files from checkpoint."""
     checkpoints.scanfold_split_fasta_batches.get(sample=wc.sample)
     batch_ids = get_batch_ids(wc.sample, subdir="scanfold_batches")
     return expand(
-        "results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+        "results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
         sample=wc.sample,
         batch_id=batch_ids,
     )
 
 
-use rule scanfold2_run_gpu as scanfold2_run_gpu_batch with:
+use rule scanfold2_run as scanfold2_run_batch with:
     input:
         flag="software/ScanFold2.0/installed.txt",
         fasta="results/{sample}/scanfold_batches/batch_{batch_id}.fa",
     output:
-        out="results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+        out="results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
     log:
-        "logs/{sample}/scanfold2_gpu/batch_{batch_id}.log",
+        "logs/{sample}/scanfold2/batch_{batch_id}.log",
     benchmark:
-        "benchmarks/{sample}/scanfold2_gpu/batch_{batch_id}.tsv"
+        "benchmarks/{sample}/scanfold2/batch_{batch_id}.tsv"
 
 
-rule scanfold2_gpu_all:
+rule scanfold2_batch_all:
     input:
-        lambda wc: get_scanfold_gpu_batches(
+        lambda wc: get_scanfold_batches(
             type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
+        ),
+
+
+rule scanfold2_batch_all_mikael:
+    input:
+        lambda wc: (
+            get_scanfold_batches(
+                type("WC", (), {"sample": "gencode.v47.repeat.mikael"})()
+            )
+            + get_scanfold_batches(
+                type("WC", (), {"sample": "gencode.v49.repeat.mikael"})()
+            )
         ),
 
 
@@ -275,9 +221,6 @@ checkpoint scanfold_split_retry_batches:
     output:
         manifest="results/{sample}/scanfold_retry_batches/batch_manifest.txt",
         batches=directory("results/{sample}/scanfold_retry_batches/"),
-        oversized_manifest="results/{sample}/scanfold_oversized_batches/batch_manifest.txt",
-        oversized_batches=directory("results/{sample}/scanfold_oversized_batches/"),
-        skip_tsv="results/{sample}/scanfold_oversized_skip.tsv",
     log:
         "logs/{sample}/scanfold2/split_retry_batches.log",
     benchmark:
@@ -288,49 +231,65 @@ checkpoint scanfold_split_retry_batches:
         cpus_per_task=1,
     params:
         subbatch_size=SCANFOLD_RETRY_SUBBATCH_SIZE,
-        max_seq_len=SCANFOLD_OVERSIZED_MAX_LEN,
+        exclude_flag=lambda wc: (
+            "--exclude-batches "
+            + " ".join(config.get("scanfold_running_batches", {}).get(wc.sample, []))
+            if config.get("scanfold_running_batches", {}).get(wc.sample)
+            else ""
+        ),
     shell:
         """
         {{
         python workflow/scripts/check_scanfold_partial.py \
             --sample {wildcards.sample} \
             --subbatch-size {params.subbatch_size} \
-            --max-seq-len {params.max_seq_len} \
             --write-fasta \
             --out-dir results/{wildcards.sample}/scanfold_retry_batches \
-            --oversized-dir results/{wildcards.sample}/scanfold_oversized_batches \
-            --results-dir results
+            --results-dir results \
+            {params.exclude_flag}
         }} >{log} 2>&1
         """
 
 
-def get_scanfold_retry_gpu_batches(wc):
+def get_scanfold_retry_batches(wc):
     """Collect retry sub-batch log files after the retry split checkpoint resolves."""
     checkpoints.scanfold_split_retry_batches.get(sample=wc.sample)
     batch_ids = get_batch_ids(wc.sample, subdir="scanfold_retry_batches")
     return expand(
-        "results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+        "results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
         sample=wc.sample,
         batch_id=batch_ids,
     )
 
 
-use rule scanfold2_run_gpu_batch as scanfold2_run_gpu_retry_batch with:
+use rule scanfold2_run_batch as scanfold2_run_retry_batch with:
     input:
         flag="software/ScanFold2.0/installed.txt",
         fasta="results/{sample}/scanfold_retry_batches/batch_{batch_id}.fa",
     output:
-        out="results/{sample}/scanfold2_gpu/batch_{batch_id}/ScanFold_run.log",
+        out="results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
     log:
-        "logs/{sample}/scanfold2_gpu/retry_{batch_id}.log",
+        "logs/{sample}/scanfold2/retry_{batch_id}.log",
     benchmark:
-        "benchmarks/{sample}/scanfold2_gpu/retry_{batch_id}.tsv"
+        "benchmarks/{sample}/scanfold2/retry_{batch_id}.tsv"
 
 
 rule scanfold2_retry_all:
     input:
-        lambda wc: get_scanfold_retry_gpu_batches(
+        lambda wc: get_scanfold_retry_batches(
             type("WC", (), {"sample": "gencode.v47.repeat.simple"})()
+        ),
+
+
+rule scanfold2_retry_all_mikael:
+    input:
+        lambda wc: (
+            get_scanfold_retry_batches(
+                type("WC", (), {"sample": "gencode.v47.repeat.mikael"})()
+            )
+            + get_scanfold_retry_batches(
+                type("WC", (), {"sample": "gencode.v49.repeat.mikael"})()
+            )
         ),
 
 
@@ -377,7 +336,7 @@ rule scanfold2_run_oversized:
 
 
 def get_scanfold_oversized_batches(wc):
-    checkpoints.scanfold_split_retry_batches.get(sample=wc.sample)
+    checkpoints.scanfold_split_fasta_batches.get(sample=wc.sample)
     batch_ids = get_batch_ids(wc.sample, subdir="scanfold_oversized_batches")
     return expand(
         "results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
@@ -393,18 +352,34 @@ rule scanfold2_oversized_all:
         ),
 
 
+rule scanfold2_oversized_all_mikael:
+    input:
+        lambda wc: (
+            get_scanfold_oversized_batches(
+                type("WC", (), {"sample": "gencode.v47.repeat.mikael"})()
+            )
+            + get_scanfold_oversized_batches(
+                type("WC", (), {"sample": "gencode.v49.repeat.mikael"})()
+            )
+        ),
+
+
 # ---------------------------------------------------------------------------
 # Completeness validation: confirm every sequence has a .no_filter.ct output
 # ---------------------------------------------------------------------------
 
 
 def get_all_scanfold_batch_outputs(wc):
-    """Aggregate log files from all three ScanFold batch stages."""
-    return (
-        get_scanfold_gpu_batches(wc)
-        + get_scanfold_retry_gpu_batches(wc)
+    """Aggregate log files from all three ScanFold batch stages, plus GPU if present."""
+    logs = (
+        get_scanfold_batches(wc)
+        + get_scanfold_retry_batches(wc)
         + get_scanfold_oversized_batches(wc)
     )
+    gpu_log = f"results/{wc.sample}/scanfold2_gpu/ScanFold_run.log"
+    if os.path.exists(gpu_log):
+        logs.append(gpu_log)
+    return logs
 
 
 rule scanfold2_check_complete:
@@ -431,7 +406,11 @@ rule scanfold2_validate_all:
     input:
         expand(
             "results/{sample}/scanfold2/completeness_check.tsv",
-            sample=["gencode.v47.repeat.simple"],
+            sample=[
+                "gencode.v47.repeat.simple",
+                "gencode.v47.repeat.mikael",
+                "gencode.v49.repeat.mikael",
+            ],
         ),
 
 

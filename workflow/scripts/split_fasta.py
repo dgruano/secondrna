@@ -1,104 +1,131 @@
 #!/usr/bin/env python3
 """
 Split FASTA file into batches while preserving sequence order and IDs.
-Output: batch FASTA files + manifest mapping sequence IDs to batches.
+Sequences exceeding --max-seq-len are routed to --oversized-dir as
+single-sequence FASTAs and excluded from the normal batches.
+
+Output: batch FASTA files + batch_manifest.txt (+ oversized FASTAs and their
+manifest when --max-seq-len is given).
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Optional
 
 from Bio import SeqIO
 
 
-def split_fasta(input_fasta, output_dir, batch_size):
-    """
-    Split FASTA into batches, create manifest with sequence IDs.
+def _write_manifest(out_dir: Path, entries: list[tuple[str, list[str]]]) -> None:
+    with open(out_dir / "batch_manifest.txt", "w") as f:
+        f.write("# batch_id\tseq_count\tseq_ids\n")
+        for batch_id, seq_ids in entries:
+            f.write(f"{batch_id}\t{len(seq_ids)}\t{','.join(seq_ids)}\n")
 
-    Args:
-        input_fasta: Path to input FASTA file
-        output_dir: Directory to write batch files
-        batch_size: Number of sequences per batch
 
-    Returns:
-        List of batch IDs created, total sequence count
+def split_fasta(
+    input_fasta: Path,
+    output_dir: Path,
+    batch_size: int,
+    max_seq_len: Optional[int] = None,
+    oversized_dir: Optional[Path] = None,
+) -> tuple:
+    """Split FASTA, routing oversized sequences to oversized_dir.
+
+    Returns (n_batches, n_sequences, n_oversized).
     """
-    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    batch_id = 0
-    batch_count = 0
-    current_batch_fasta = []
-    current_batch_ids = []
-    total_sequences = 0
-    manifest_lines = []
+    batch_idx = 0
+    oversized_idx = 0
+    current_batch: list = []
+    current_ids: list[str] = []
+    batch_entries: list[tuple[str, list[str]]] = []
+    oversized_entries: list[tuple[str, list[str]]] = []
+    skip_rows: list[tuple[str, int]] = []
+    total = 0
 
-    # Read FASTA sequentially and group into batches
-    for record in SeqIO.parse(input_fasta, "fasta"):
-        total_sequences += 1
-        current_batch_fasta.append(record)
-        current_batch_ids.append(record.id)
-        batch_count += 1
+    for record in SeqIO.parse(str(input_fasta), "fasta"):
+        total += 1
 
-        # Write batch when full
-        if batch_count == batch_size:
-            batch_file = output_dir / f"batch_{batch_id:05d}.fa"
-            SeqIO.write(current_batch_fasta, str(batch_file), "fasta")
+        if max_seq_len is not None and len(record.seq) > max_seq_len:
+            oversized_dir.mkdir(parents=True, exist_ok=True)
+            ob_id = f"oversized_{oversized_idx:05d}"
+            SeqIO.write([record], str(oversized_dir / f"batch_{ob_id}.fa"), "fasta")
+            oversized_entries.append((ob_id, [record.id]))
+            skip_rows.append((record.id, len(record.seq)))
+            oversized_idx += 1
+            continue
 
-            # Record in manifest: batch_id, seq_count, comma-separated seq IDs
-            manifest_line = f"{batch_id:05d}\t{len(current_batch_ids)}\t{','.join(current_batch_ids)}"
-            manifest_lines.append(manifest_line)
+        current_batch.append(record)
+        current_ids.append(record.id)
 
-            batch_id += 1
-            current_batch_fasta = []
-            current_batch_ids = []
-            batch_count = 0
+        if len(current_batch) == batch_size:
+            bid = f"{batch_idx:05d}"
+            SeqIO.write(current_batch, str(output_dir / f"batch_{bid}.fa"), "fasta")
+            batch_entries.append((bid, current_ids))
+            batch_idx += 1
+            current_batch, current_ids = [], []
 
-    # Write final partial batch if any sequences remain
-    if current_batch_fasta:
-        batch_file = output_dir / f"batch_{batch_id:05d}.fa"
-        SeqIO.write(current_batch_fasta, str(batch_file), "fasta")
-        manifest_line = (
-            f"{batch_id:05d}\t{len(current_batch_ids)}\t{','.join(current_batch_ids)}"
-        )
-        manifest_lines.append(manifest_line)
-        batch_id += 1
+    if current_batch:
+        bid = f"{batch_idx:05d}"
+        SeqIO.write(current_batch, str(output_dir / f"batch_{bid}.fa"), "fasta")
+        batch_entries.append((bid, current_ids))
+        batch_idx += 1
 
-    # Write manifest
-    manifest_file = output_dir / "batch_manifest.txt"
-    with open(manifest_file, "w") as f:
-        f.write("# batch_id\tseq_count\tseq_ids\n")
-        for line in manifest_lines:
-            f.write(line + "\n")
+    _write_manifest(output_dir, batch_entries)
 
-    return batch_id, total_sequences
+    if oversized_dir is not None:
+        oversized_dir.mkdir(parents=True, exist_ok=True)
+        _write_manifest(oversized_dir, oversized_entries)
+        skip_tsv = oversized_dir.parent / "scanfold_oversized_skip.tsv"
+        with open(skip_tsv, "w") as f:
+            f.write("seq_id\tseq_len\tsource_batch\n")
+            for seq_id, seq_len in skip_rows:
+                f.write(f"{seq_id}\t{seq_len}\tinitial_split\n")
+
+    return batch_idx, total, oversized_idx
 
 
 def main():
-    if len(sys.argv) != 4:
-        print(f"Usage: {sys.argv[0]} <input_fasta> <output_dir> <batch_size>")
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("input_fasta", help="Input FASTA file")
+    p.add_argument("output_dir", help="Directory for batch FASTA files")
+    p.add_argument("batch_size", type=int, help="Sequences per batch")
+    p.add_argument(
+        "--max-seq-len",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Route sequences longer than N nt to --oversized-dir",
+    )
+    p.add_argument(
+        "--oversized-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Directory for single-sequence oversized FASTAs (required with --max-seq-len)",
+    )
+    args = p.parse_args()
+
+    if (args.max_seq_len is None) != (args.oversized_dir is None):
+        p.error("--max-seq-len and --oversized-dir must be used together")
+    if not os.path.isfile(args.input_fasta):
+        print(f"Error: input file not found: {args.input_fasta}", file=sys.stderr)
+        sys.exit(1)
+    if args.batch_size <= 0:
+        print("Error: batch_size must be positive", file=sys.stderr)
         sys.exit(1)
 
-    input_fasta = sys.argv[1]
-    output_dir = sys.argv[2]
-    batch_size = int(sys.argv[3])
-
-    if not os.path.isfile(input_fasta):
-        print(f"Error: Input file not found: {input_fasta}", file=sys.stderr)
-        sys.exit(1)
-
-    if batch_size <= 0:
-        print(f"Error: batch_size must be positive, got {batch_size}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        num_batches, total_seqs = split_fasta(input_fasta, output_dir, batch_size)
-        print(f"Successfully split {total_seqs} sequences into {num_batches} batches")
-        print(f"Batch size: {batch_size}")
-        print(f"Output: {output_dir}")
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+    n_batches, total, n_oversized = split_fasta(
+        Path(args.input_fasta),
+        Path(args.output_dir),
+        args.batch_size,
+        args.max_seq_len,
+        args.oversized_dir,
+    )
+    print(f"Split {total} sequences into {n_batches} batches ({n_oversized} oversized)")
 
 
 if __name__ == "__main__":
