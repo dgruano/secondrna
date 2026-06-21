@@ -188,6 +188,8 @@ use rule scanfold2_run as scanfold2_run_batch with:
         "logs/{sample}/scanfold2/batch_{batch_id}.log",
     benchmark:
         "benchmarks/{sample}/scanfold2/batch_{batch_id}.tsv"
+    wildcard_constraints:
+        batch_id=r"\d+",
 
 
 rule scanfold2_batch_all:
@@ -272,6 +274,8 @@ use rule scanfold2_run_batch as scanfold2_run_retry_batch with:
         "logs/{sample}/scanfold2/retry_{batch_id}.log",
     benchmark:
         "benchmarks/{sample}/scanfold2/retry_{batch_id}.tsv"
+    wildcard_constraints:
+        batch_id=r"\d+_retry_\d+",
 
 
 rule scanfold2_retry_all:
