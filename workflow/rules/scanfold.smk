@@ -366,26 +366,45 @@ rule scanfold2_oversized_all_mikael:
 
 # ---------------------------------------------------------------------------
 # Completeness validation: confirm every sequence has a .no_filter.ct output
+#
+# Two paths — choose based on which DAG was run:
+#
+#   Happy path  (all batches completed):
+#       snakemake scanfold2_validate_full_all
+#
+#   Retry path  (some batches failed and were retried as sub-batches):
+#       snakemake scanfold2_retry_all         # first: run retries
+#       snakemake scanfold2_validate_retry_all # then:  validate
+#
+# Both rules call the same check_scanfold_complete.py, which validates at
+# the sequence level against the manifest regardless of which batch stage
+# produced each .no_filter.ct file.
 # ---------------------------------------------------------------------------
 
 
-def get_all_scanfold_batch_outputs(wc):
-    """Aggregate log files from all three ScanFold batch stages, plus GPU if present."""
-    logs = (
-        get_scanfold_batches(wc)
-        + get_scanfold_retry_batches(wc)
-        + get_scanfold_oversized_batches(wc)
-    )
+def get_scanfold_full_outputs(wc):
+    """Happy path: original batches + oversized. No retry logs required."""
+    logs = get_scanfold_batches(wc) + get_scanfold_oversized_batches(wc)
     gpu_log = f"results/{wc.sample}/scanfold2_gpu/ScanFold_run.log"
     if os.path.exists(gpu_log):
         logs.append(gpu_log)
     return logs
 
 
-rule scanfold2_check_complete:
-    """Validate all original sequences have .no_filter.ct outputs across all batch stages."""
+def get_scanfold_retry_outputs(wc):
+    """Retry path: retry sub-batches + oversized. Original batch logs intentionally excluded."""
+    return get_scanfold_retry_batches(wc) + get_scanfold_oversized_batches(wc)
+
+
+rule scanfold2_check_complete_full:
+    """Validate all sequences have .no_filter.ct outputs — happy path.
+
+Requires all original batch logs. Use only after scanfold2_batch_all and
+scanfold2_oversized_all complete without failures. If any batch log is
+absent, Snakemake will attempt to rerun that batch (not the retry path).
+"""
     input:
-        batch_logs=get_all_scanfold_batch_outputs,
+        batch_logs=get_scanfold_full_outputs,
         manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
     output:
         report="results/{sample}/scanfold2/completeness_check.tsv",
@@ -402,10 +421,50 @@ rule scanfold2_check_complete:
         "../scripts/check_scanfold_complete.py"
 
 
-rule scanfold2_validate_all:
+rule scanfold2_check_complete_retry:
+    """Validate all sequences have .no_filter.ct outputs — retry path.
+
+Does NOT require original batch logs: some are absent because those jobs
+failed, and that is expected. Requires only retry sub-batch logs and
+oversized logs. The Python script validates at the sequence level against
+the manifest, so it catches any sequences still missing after retries.
+"""
+    input:
+        batch_logs=get_scanfold_retry_outputs,
+        manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
+    output:
+        report="results/{sample}/scanfold2/completeness_check_retry.tsv",
+    log:
+        "logs/{sample}/scanfold2/check_complete_retry.log",
+    benchmark:
+        "benchmarks/{sample}/scanfold2/check_complete_retry.tsv"
+    resources:
+        runtime=10,
+        mem_mb=2048,
+    params:
+        results_dir="results",
+    script:
+        "../scripts/check_scanfold_complete.py"
+
+
+rule scanfold2_validate_full_all:
+    """Terminal rule: happy-path validation for all samples."""
     input:
         expand(
             "results/{sample}/scanfold2/completeness_check.tsv",
+            sample=[
+                "gencode.v47.repeat.simple",
+                "gencode.v47.repeat.mikael",
+                "gencode.v49.repeat.mikael",
+            ],
+        ),
+
+
+rule scanfold2_validate_retry_all:
+    """Terminal rule: retry-path validation for all samples."""
+    input:
+        expand(
+            "results/{sample}/scanfold2/completeness_check_retry.tsv",
             sample=[
                 "gencode.v47.repeat.simple",
                 "gencode.v47.repeat.mikael",
