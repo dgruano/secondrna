@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import re
 import tarfile
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import IO, Iterable
 
@@ -362,6 +363,9 @@ def compute_final_partners_stats(df: pd.DataFrame, n_bins: int = 10) -> pd.Serie
     competition = df["competition"].to_numpy()
 
     n = len(df)
+    if n == 0:
+        return pd.Series({"length": 0}, dtype=float)
+
     mask_z1 = z < -1
     mask_z2 = z < -2
 
@@ -419,6 +423,7 @@ def summarize_final_partners_dir(
     directory: str | Path,
     pattern: str = f"**/*{_FP_SUFFIX}",
     n_bins: int = 10,
+    logger=None,
 ) -> pd.DataFrame:
     """Compute per-transcript FinalPartners stats for all files under a directory.
 
@@ -453,16 +458,51 @@ def summarize_final_partners_dir(
     for path in files:
         transcript_id = path.name.removesuffix(_FP_SUFFIX)
         df = load_final_partners(path)
+        if df.empty:
+            if logger:
+                logger.warning(f"[skip] empty FinalPartners: {path}")
+            continue
         records.append(compute_final_partners_stats(df, n_bins=n_bins))
         index.append(transcript_id)
 
     return pd.DataFrame(records, index=pd.Index(index, name="transcript_id"))
 
 
+def _process_archive(args: tuple) -> list[tuple[str, str, pd.Series]]:
+    """Worker: extract stats from one .tar.gz; returns list of (transcript_id, tarball_stem, stats)."""
+    archive_path, n_bins = args
+    archive = Path(archive_path)
+    tarball_stem = archive.name.removesuffix(".tar.gz")
+    results = []
+    with tarfile.open(archive, "r:gz") as tf:
+        members = [
+            m for m in tf.getmembers() if m.name.endswith(_FP_SUFFIX) and m.isfile()
+        ]
+        for member in members:
+            fobj = tf.extractfile(member)
+            if fobj is None:
+                continue
+            lines = io.TextIOWrapper(fobj, encoding="utf-8")
+            df = _parse_final_partners_lines(lines)
+            if df.empty:
+                continue
+            transcript_id = Path(member.name).name.removesuffix(_FP_SUFFIX)
+            results.append(
+                (
+                    transcript_id,
+                    tarball_stem,
+                    compute_final_partners_stats(df, n_bins=n_bins),
+                )
+            )
+    return results
+
+
 def summarize_final_partners_tarballs(
     directory: str | Path,
     tarball_pattern: str = "*.tar.gz",
     n_bins: int = 10,
+    threads: int = 1,
+    logger=None,
 ) -> pd.DataFrame:
     """Compute per-transcript FinalPartners stats from all tarballs in a directory.
 
@@ -492,21 +532,11 @@ def summarize_final_partners_tarballs(
     index: list[str] = []
     tarball_labels: list[str] = []
 
-    for archive in archives:
-        tarball_stem = archive.name.removesuffix(".tar.gz")
-        with tarfile.open(archive, "r:gz") as tf:
-            members = [
-                m for m in tf.getmembers() if m.name.endswith(_FP_SUFFIX) and m.isfile()
-            ]
-            for member in members:
-                fobj = tf.extractfile(member)
-                if fobj is None:
-                    continue
-                # Wrap bytes stream as text for _parse_final_partners_lines
-                lines = io.TextIOWrapper(fobj, encoding="utf-8")
-                df = _parse_final_partners_lines(lines)
-                transcript_id = Path(member.name).name.removesuffix(_FP_SUFFIX)
-                records.append(compute_final_partners_stats(df, n_bins=n_bins))
+    args = [(str(a), n_bins) for a in archives]
+    with ProcessPoolExecutor(max_workers=threads) as ex:
+        for batch in ex.map(_process_archive, args):
+            for transcript_id, tarball_stem, stats in batch:
+                records.append(stats)
                 index.append(transcript_id)
                 tarball_labels.append(tarball_stem)
 

@@ -36,6 +36,9 @@ documents/
 docs/
 TODO.md
 
+# Temporary Snakemake rules (local scratch, not committed)
+workflow/rules/temp.smk
+
 # System
 .DS_Store
 *.tmp

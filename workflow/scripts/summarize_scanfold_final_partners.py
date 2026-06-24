@@ -50,7 +50,7 @@ def _has_tarballs(directory: Path) -> bool:
 
 
 def process_directory(
-    directory: Path, n_bins: int, logger: logging.Logger
+    directory: Path, n_bins: int, threads: int, logger: logging.Logger
 ) -> pd.DataFrame:
     """Summarize one directory, auto-detecting tarballs vs. flat files."""
     directory = Path(directory)
@@ -59,12 +59,14 @@ def process_directory(
 
     if _has_tarballs(directory):
         logger.info(f"[tarball] {directory}")
-        df = summarize_final_partners_tarballs(directory, n_bins=n_bins)
+        df = summarize_final_partners_tarballs(
+            directory, n_bins=n_bins, threads=threads, logger=logger
+        )
         # Drop 'tarball' provenance column — source_dir covers it at this level
         df = df.drop(columns="tarball", errors="ignore")
     else:
         logger.info(f"[files]   {directory}")
-        df = summarize_final_partners_dir(directory, n_bins=n_bins)
+        df = summarize_final_partners_dir(directory, n_bins=n_bins, logger=logger)
 
     logger.info(f"          {len(df):,} transcripts")
     df.insert(0, "source_dir", str(directory))
@@ -72,13 +74,17 @@ def process_directory(
 
 
 def run(
-    dirs: list[str], output: str, n_bins: int = 10, log_file: str | None = None
+    dirs: list[str],
+    output: str,
+    n_bins: int = 10,
+    threads: int = 1,
+    log_file: str | None = None,
 ) -> None:
     logger = setup_logging(log_file)
 
     frames = []
     for d in dirs:
-        frames.append(process_directory(Path(d), n_bins, logger))
+        frames.append(process_directory(Path(d), n_bins, threads, logger))
 
     result = pd.concat(frames)
     logger.info(f"Total: {len(result):,} transcripts from {len(dirs)} director(y/ies)")
@@ -110,6 +116,12 @@ def parse_args(args=None):
         dest="n_bins",
         help="Number of positional bins (default: 10).",
     )
+    p.add_argument(
+        "--threads",
+        type=int,
+        default=1,
+        help="Parallel workers for tarball processing.",
+    )
     p.add_argument("--log", help="Log file path.")
     return p.parse_args(args)
 
@@ -121,12 +133,19 @@ def main():
             dirs=list(smk.input),
             output=smk.output[0],
             n_bins=getattr(smk.params, "n_bins", 10),
+            threads=smk.threads,
             log=smk.log[0] if smk.log else None,
         )
     else:
         args = parse_args()
 
-    run(args.dirs, args.output, n_bins=args.n_bins, log_file=args.log)
+    run(
+        args.dirs,
+        args.output,
+        n_bins=args.n_bins,
+        threads=args.threads,
+        log_file=args.log,
+    )
 
 
 if __name__ == "__main__":

@@ -121,6 +121,7 @@ rule scanfold2_run:
         fasta="resources/{sample}.fa",
     output:
         out="results/{sample}/scanfold2/ScanFold_run.log",
+        # TODO: Change to sentinel file
     log:
         "logs/{sample}/scanfold2/run.log",
     benchmark:
@@ -184,6 +185,7 @@ use rule scanfold2_run as scanfold2_run_batch with:
         fasta="results/{sample}/scanfold_batches/batch_{batch_id}.fa",
     output:
         out="results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
+        # TODO: Change to sentinel file
     log:
         "logs/{sample}/scanfold2/batch_{batch_id}.log",
     benchmark:
@@ -259,6 +261,7 @@ def get_scanfold_retry_batches(wc):
     batch_ids = get_batch_ids(wc.sample, subdir="scanfold_retry_batches")
     return expand(
         "results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
+        # TODO: Change to sentinel file
         sample=wc.sample,
         batch_id=batch_ids,
     )
@@ -270,6 +273,7 @@ use rule scanfold2_run_batch as scanfold2_run_retry_batch with:
         fasta="results/{sample}/scanfold_retry_batches/batch_{batch_id}.fa",
     output:
         out="results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
+        # TODO: Change to sentinel file
     log:
         "logs/{sample}/scanfold2/retry_{batch_id}.log",
     benchmark:
@@ -309,6 +313,7 @@ rule scanfold2_run_oversized:
         fasta="results/{sample}/scanfold_oversized_batches/batch_{batch_id}.fa",
     output:
         out="results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
+        # TODO: Change to sentinel file
     log:
         "logs/{sample}/scanfold2_oversized/{batch_id}.log",
     benchmark:
@@ -344,6 +349,7 @@ def get_scanfold_oversized_batches(wc):
     batch_ids = get_batch_ids(wc.sample, subdir="scanfold_oversized_batches")
     return expand(
         "results/{sample}/scanfold2_oversized/batch_{batch_id}/ScanFold_run.log",
+        # TODO: Change to sentinel file
         sample=wc.sample,
         batch_id=batch_ids,
     )
@@ -490,9 +496,10 @@ Runs independently of the main DAG — trigger with:
         "logs/scanfold2/summarize_final_partners.log",
     benchmark:
         "benchmarks/scanfold2/summarize_final_partners.tsv"
+    threads: 20  # Needed to parallelize tarball extraction and parsing
     resources:
         runtime=60,
-        mem_mb=16384,
+        mem_mb=36_000,
     params:
         n_bins=config.get("final_partners_n_bins", 10),
     script:
