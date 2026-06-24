@@ -21,7 +21,7 @@ Memory is dynamically allocated based on batch_size.
         "test_rg4"
     resources:
         runtime=120,
-        mem_mb=lambda wc: calculate_memory_for_batch(BATCH_SIZE),
+        mem_mb=10000,  #lambda wc: calculate_memory_for_batch(BATCH_SIZE),
         cpus_per_task=1,
     shell:
         """
@@ -55,7 +55,7 @@ Memory is dynamically allocated based on batch_size.
         "test_rg4"
     resources:
         runtime=120,
-        mem_mb=lambda wc: calculate_memory_for_batch(BATCH_SIZE),
+        mem_mb=10000,  #lambda wc: calculate_memory_for_batch(BATCH_SIZE),
         cpus_per_task=1,
     shell:
         """

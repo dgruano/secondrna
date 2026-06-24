@@ -41,8 +41,9 @@ rule rg4_predict:
 Run rG4detector in prediction mode on input FASTA.
 """
     input:
+        #validated = "results/{sample}/.input_validated",
         marker="results/.rg4_setup_done",
-        input_fasta="resources/input_{sample}.fa",
+        input_fasta="resources/{sample}.fa",
     output:
         "results/{sample}/rg4detector/rG4detector_prediction.csv",
     log:
@@ -59,7 +60,7 @@ Run rG4detector in prediction mode on input FASTA.
     shell:
         """
         {{
-            IN=$(realpath resources/input_{wildcards.sample}.fa)
+            IN=$(realpath resources/{wildcards.sample}.fa)
             OUT=$(realpath results/{wildcards.sample}/rg4detector/)
             mkdir -p $OUT
             echo "Running rG4detector prediction on $IN, outputting to $OUT"
@@ -76,7 +77,7 @@ Run rG4detector in detection mode on input FASTA.
 """
     input:
         marker="results/.rg4_setup_done",
-        input_fasta="resources/input_{sample}.fa",
+        input_fasta="resources/{sample}.fa",
     output:
         "results/{sample}/rg4detector/detection.csv",
     log:
@@ -93,7 +94,7 @@ Run rG4detector in detection mode on input FASTA.
     shell:
         """
         {{
-            IN=$(realpath resources/input_{wildcards.sample}.fa)
+            IN=$(realpath resources/{wildcards.sample}.fa)
             OUT=$(realpath results/{wildcards.sample}/rg4detector/)
             mkdir -p $OUT
             echo "Running rG4detector detection on $IN, outputting to $OUT"
