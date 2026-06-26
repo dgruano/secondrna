@@ -47,7 +47,7 @@ Split input FASTA into fixed-size batches, preserving sequence order.
 Creates batch FASTA files and manifest with sequence ID mapping.
 """
     input:
-        fasta="resources/input_{sample}.fa",
+        fasta="resources/{sample}.fa",
     output:
         marker="results/{sample}/.batches_created",
         manifest="results/{sample}/batches/batch_manifest.txt",

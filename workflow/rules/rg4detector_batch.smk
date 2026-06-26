@@ -12,7 +12,7 @@ Memory is dynamically allocated based on batch_size.
         batch="results/{sample}/batches/batch_{batch_id}.fa",
         setup="results/.rg4_setup_done",
     output:
-        csv="results/{sample}/predictions/{batch_id}/rG4detector_prediction.csv",
+        csv="results/{sample}/rg4detector/predictions/{batch_id}/rG4detector_prediction.csv",
     log:
         "logs/{sample}/predict_batch_{batch_id}.log",
     benchmark:
@@ -46,7 +46,7 @@ Memory is dynamically allocated based on batch_size.
         batch="results/{sample}/batches/batch_{batch_id}.fa",
         setup="results/.rg4_setup_done",
     output:
-        csv="results/{sample}/detections/{batch_id}/detection.csv",
+        csv="results/{sample}/rg4detector/detections/{batch_id}/detection.csv",
     log:
         "logs/{sample}/detect_batch_{batch_id}.log",
     benchmark:
@@ -76,7 +76,7 @@ def get_prediction_batches(wc):
     checkpoints.split_fasta_batches.get(sample=wc.sample)
     batch_ids = get_batch_ids(wc.sample)
     return expand(
-        "results/{sample}/predictions/{batch_id}/rG4detector_prediction.csv",
+        "results/{sample}/rg4detector/predictions/{batch_id}/rG4detector_prediction.csv",
         sample=wc.sample,
         batch_id=batch_ids,
     )
@@ -98,6 +98,8 @@ Uses sequence ID matching for robustness.
         "logs/{sample}/merge_predictions.log",
     benchmark:
         "benchmarks/{sample}/merge_predictions.tsv"
+    conda:
+        "lnc-datasets"
     resources:
         runtime=10,
         mem_mb=1024 * 2,
@@ -115,7 +117,7 @@ def get_detection_batches(wc):
     checkpoints.split_fasta_batches.get(sample=wc.sample)
     batch_ids = get_batch_ids(wc.sample)
     return expand(
-        "results/{sample}/detections/{batch_id}/detection.csv",
+        "results/{sample}/rg4detector/detections/{batch_id}/detection.csv",
         sample=wc.sample,
         batch_id=batch_ids,
     )
@@ -132,11 +134,13 @@ Uses sequence ID matching for robustness.
         ).output.manifest,
         detections=get_detection_batches,
     output:
-        csv="results/{sample}/detection.csv",
+        csv="results/{sample}/rg4detector/detection.csv",
     log:
         "logs/{sample}/merge_detections.log",
     benchmark:
         "benchmarks/{sample}/merge_detections.tsv"
+    conda:
+        "lnc-datasets"
     resources:
         runtime=20,
         mem_mb=1024 * 30,  # Detection files are larger, so we allow more memory for merging
