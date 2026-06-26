@@ -353,8 +353,14 @@ def compute_final_partners_stats(df: pd.DataFrame, n_bins: int = 10) -> pd.Serie
     Relative position of global extremes [0 = 5' end, 1 = 3' end]:
         rel_pos_avgZ_min, rel_pos_avgMFE_min, rel_pos_avgED_min
 
-    Per-bin counts (suffix _bin1 … _bin{n_bins}):
-        n_paired_bin*, n_competition_bin*, n_z_lt_minus1_bin*, n_z_lt_minus2_bin*
+    Per-bin fractions (suffix _bin1 … _bin{n_bins}):
+        These could be either:
+        - 1) fraction of nucleotides in that bin that meet the criterion
+        - 2) fraction of nucleotides that meet the criterion in the total sequence that fall in that bin
+        The second option answers better the question "where in the transcript do these features occur?",
+        and is therefore closer to our question on feature distribution.
+        We call them prop_*_bin{n} for proportion, to avoid confusion with the sequence-level fractions above.
+        prop_paired_bin*, prop_competition_bin*, prop_z_lt_minus1_bin*, prop_z_lt_minus2_bin*
     """
     z = df["avgZ"].to_numpy()
     mfe = df["avgMFE"].to_numpy()
@@ -411,10 +417,24 @@ def compute_final_partners_stats(df: pd.DataFrame, n_bins: int = 10) -> pd.Serie
     bin_idx = np.floor(np.arange(n) * n_bins / n).astype(int).clip(0, n_bins - 1)
     for b in range(n_bins):
         sel = bin_idx == b
-        stats[f"n_paired_bin{b + 1}"] = int(paired[sel].sum())
-        stats[f"n_competition_bin{b + 1}"] = int(competition[sel].sum())
-        stats[f"n_z_lt_minus1_bin{b + 1}"] = int(mask_z1[sel].sum())
-        stats[f"n_z_lt_minus2_bin{b + 1}"] = int(mask_z2[sel].sum())
+        stats[f"prop_paired_bin{b + 1}"] = (
+            int(paired[sel].sum()) / stats["n_paired"] if stats["n_paired"] > 0 else 0
+        )
+        stats[f"prop_competition_bin{b + 1}"] = (
+            int(competition[sel].sum()) / stats["n_competition"]
+            if stats["n_competition"] > 0
+            else 0
+        )
+        stats[f"prop_z_lt_minus1_bin{b + 1}"] = (
+            int(mask_z1[sel].sum()) / stats["n_z_lt_minus1"]
+            if stats["n_z_lt_minus1"] > 0
+            else 0
+        )
+        stats[f"prop_z_lt_minus2_bin{b + 1}"] = (
+            int(mask_z2[sel].sum()) / stats["n_z_lt_minus2"]
+            if stats["n_z_lt_minus2"] > 0
+            else 0
+        )
 
     return pd.Series(stats)
 
