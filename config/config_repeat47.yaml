@@ -10,8 +10,10 @@ scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete bat
 
 # FinalPartners Summarization (standalone, outside main DAG)
 final_partners_dirs:
-  - "/mnt/cbib/LNClassifier/RNA_ScanFold2.0"
-final_partners_output: "results/gencode.v48/scanfold_final_partners_stats.tsv"
+  - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2"
+  - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu"
+  - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_oversized"
+final_partners_output: "results/gencode.v47.repeat.simple/scanfold_final_partners_stats.tsv"
 final_partners_n_bins: 10
 
 # Summarization Parameters
