@@ -18,7 +18,7 @@ Memory is dynamically allocated based on batch_size.
     benchmark:
         "benchmarks/{sample}/predict_batch_{batch_id}.tsv"
     conda:
-        "test_rg4"
+        "../envs/rg4detector.yaml"
     resources:
         runtime=120,
         mem_mb=10000,  #lambda wc: calculate_memory_for_batch(BATCH_SIZE),
@@ -52,7 +52,7 @@ Memory is dynamically allocated based on batch_size.
     benchmark:
         "benchmarks/{sample}/detect_batch_{batch_id}.tsv"
     conda:
-        "test_rg4"
+        "../envs/rg4detector.yaml"
     resources:
         runtime=120,
         mem_mb=10000,  #lambda wc: calculate_memory_for_batch(BATCH_SIZE),
@@ -98,6 +98,8 @@ Uses sequence ID matching for robustness.
         "logs/{sample}/merge_predictions.log",
     benchmark:
         "benchmarks/{sample}/merge_predictions.tsv"
+    conda:
+        "../envs/rg4_visualization.yaml"
     resources:
         runtime=10,
         mem_mb=1024 * 2,
@@ -137,6 +139,8 @@ Uses sequence ID matching for robustness.
         "logs/{sample}/merge_detections.log",
     benchmark:
         "benchmarks/{sample}/merge_detections.tsv"
+    conda:
+        "../envs/rg4_visualization.yaml"
     resources:
         runtime=20,
         mem_mb=1024 * 30,  # Detection files are larger, so we allow more memory for merging

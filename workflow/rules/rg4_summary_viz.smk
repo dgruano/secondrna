@@ -48,6 +48,8 @@ Parameters (configurable via --config):
         "logs/{sample}/rg4detector/summarize_rg4_detection.log",
     benchmark:
         "benchmarks/{sample}/rg4detector/summarize_rg4_detection.tsv"
+    conda:
+        "../envs/rg4_visualization.yaml"
     resources:
         runtime=30,
         mem_mb=1024 * 20,
@@ -104,6 +106,8 @@ Example annotation file (TSV):
         "logs/{sample}/rg4detector/add_group_annotations.log",
     benchmark:
         "benchmarks/{sample}/rg4detector/add_group_annotations.tsv"
+    conda:
+        "../envs/rg4_visualization.yaml"
     resources:
         runtime=10,
         mem_mb=2048,
@@ -173,7 +177,7 @@ Parameters (configurable via --config):
     benchmark:
         "benchmarks/{sample}/rg4detector/visualize_rg4_summary.tsv"
     conda:
-        "rg4_visualization"
+        "../envs/rg4_visualization.yaml"
     resources:
         runtime=10,
         mem_mb=2048,

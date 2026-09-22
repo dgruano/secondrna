@@ -59,7 +59,7 @@ rule scanfold2_run:
     benchmark:
         "benchmarks/{sample}/scanfold2/run.txt"
     conda:
-        "scanfold2"
+        "../envs/scanfold2.yaml"
     threads: 1
     resources:
         runtime=1440,

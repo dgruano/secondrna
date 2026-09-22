@@ -57,7 +57,7 @@ Creates batch FASTA files and manifest with sequence ID mapping.
     benchmark:
         "benchmarks/{sample}/split_fasta_batches.tsv"
     conda:
-        "test_rg4"
+        "../envs/rg4detector.yaml"
     resources:
         runtime=10,
         mem_mb=2048,
@@ -88,7 +88,7 @@ checkpoint scanfold_split_fasta_batches:
     benchmark:
         "benchmarks/{sample}/scanfold_split_fasta_batches.tsv"
     conda:
-        "test_rg4"
+        "../envs/rg4detector.yaml"
     resources:
         runtime=10,
         mem_mb=2048,
