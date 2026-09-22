@@ -1,19 +1,30 @@
 # Secondarna Pipeline Configuration
 # Default values for all configurable parameters
 
-# Batch Processing Parameters
-batch_size: 1000  # Sequences per batch for rG4detector
+#################################################
+# PATHS (must be filled)
+#################################################
+annotation_file: null  # Optional BED file with feature annotations
+group_annotation_file: "/mnt/cbib/LNClassifier/paper/results/gencode.v47.common.cdhit.cv/tables/gencode.v47.common.cdhit.cv_binary_class_table.tsv"  # BED file for grouping transcripts
+final_partners_dirs:
+  - "/mnt/cbib/LNClassifier/RNA_ScanFold2.0"
+final_partners_output: "results/gencode.v48/scanfold_final_partners_stats.tsv"
+
+#################################################
+# SAMPLES (must be filled)
+#################################################
 samples:
   - "gencode.v47"  # FASTA basenames under resources/ processed by the default target
 
-# ScanFold Batch Parameters
+#################################################
+# DEFAULTS (can remain unchanged)
+#################################################
+# Batch Processing Parameters
+batch_size: 1000  # Sequences per batch for rG4detector
 scanfold_oversized_max_len: 20000  # Sequences longer than this (nt) are routed to the oversized pipeline at split time
 scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete batches
 
 # FinalPartners Summarization (standalone, outside main DAG)
-final_partners_dirs:
-  - "/mnt/cbib/LNClassifier/RNA_ScanFold2.0"
-final_partners_output: "results/gencode.v48/scanfold_final_partners_stats.tsv"
 final_partners_n_bins: 10
 
 # Summarization Parameters
@@ -22,8 +33,6 @@ threshold_low: 1.0  # Score threshold for candidate rG4 peaks
 threshold_high: 2.0  # Score threshold for high-confidence rG4 peaks
 min_peak_prominence: 0.3  # Minimum peak prominence for peak calling
 min_peak_width: 20  # Minimum peak width in nucleotides
-annotation_file: null  # Optional BED file with feature annotations
-group_annotation_file: "/mnt/cbib/LNClassifier/paper/results/gencode.v47.common.cdhit.cv/tables/gencode.v47.common.cdhit.cv_binary_class_table.tsv"  # BED file for grouping transcripts
 
 # Visualization Parameters
 viz_output_dir: "results/{sample}/viz"  # Output directory root for visualizations
