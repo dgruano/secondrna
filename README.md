@@ -3,6 +3,23 @@
 This is a Snakemake pipeline that computes and integrates results from several
 prediction tools of secondary and tertiary RNA structures.
 
+## Run the pipeline
+
+Add each FASTA basename to `samples` in `config/config.yaml`, with the matching
+file under `resources/`, then run:
+
+```bash
+conda activate snakemake
+snakemake --profile profiles/default
+```
+
+For a one-off sample list without editing the config file, use a temporary
+config override:
+
+```bash
+snakemake --profile profiles/default --config samples=my_sample
+```
+
 ## Dev notes
 After checking different batch sizes, I think that:
 - Running time scales O(n), 20 min / 1000 seqs
