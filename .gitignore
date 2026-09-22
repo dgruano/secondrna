@@ -39,6 +39,23 @@ TODO.md
 # Temporary Snakemake rules (local scratch, not committed)
 workflow/rules/temp.smk
 
+# Ad-hoc debug/recovery artifacts (root-level only; results/ already ignored above)
+/check*.tsv
+/completeness_check.tsv
+/dag.pdf
+/dag.svg
+/*.tar.gz
+/scanfold_recover_*.log
+/running_batches.yaml
+
+# Personal exploratory notebooks and worktrees for the helpers branch
+# (tracked notebooks with generic/tutorial value stay allow-listed below)
+/notebooks/*
+!/notebooks/*_exploration.ipynb
+!/notebooks/g4_venn_diagrams.ipynb
+!/notebooks/scanfold_runtime_analysis.ipynb
+/.worktrees/
+
 # System
 .DS_Store
 *.tmp
