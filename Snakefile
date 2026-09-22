@@ -17,7 +17,7 @@ samples = (
 
 # Include rule modules
 include: "workflow/rules/rg4detector_batch.smk"
-# include: "workflow/rules/rg4detector.smk"
+include: "workflow/rules/rg4detector.smk"
 include: "workflow/rules/utils.smk"
 include: "workflow/rules/rg4detector_summary.smk"
 include: "workflow/rules/rg4_summary_viz.smk"
@@ -28,6 +28,7 @@ include: "workflow/rules/scanfold_core.smk"
 
 rule all:
     input:
+        expand(rules.rg4_detect.output, sample=samples),
         expand(rules.merge_rg4_predictions.output.csv, sample=samples),
         expand(rules.merge_rg4_detections.output.csv, sample=samples),
         expand(rules.summarize_rg4_detection.output.summary_csv, sample=samples),
