@@ -254,7 +254,13 @@ def main():
     n_processed = 0
 
     with open(args.output, "w", newline="") as out_fh:
-        for tx_id, scores, positions in stream_detection(args.input):
+        for row in stream_detection(args.input):
+            if len(row) == 2:
+                tx_id, scores = row
+                positions = np.arange(1, len(scores) + 1, dtype=int)
+            else:
+                tx_id, scores, positions = row
+
             rec = summarize_transcript(
                 transcript_id=tx_id,
                 scores=scores,
