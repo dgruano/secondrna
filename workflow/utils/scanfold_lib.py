@@ -439,10 +439,32 @@ def compute_final_partners_stats(df: pd.DataFrame, n_bins: int = 10) -> pd.Serie
     return pd.Series(stats)
 
 
+def seq_lengths_from_fastas(fasta_paths: list[str | Path]) -> dict[str, int]:
+    """Return {seq_id: length} by scanning FASTA headers — no sequence loading."""
+    lengths: dict[str, int] = {}
+    for path in fasta_paths:
+        current_id: str | None = None
+        current_len = 0
+        with open(path) as fh:
+            for line in fh:
+                if line.startswith(">"):
+                    if current_id is not None:
+                        lengths[current_id] = current_len
+                    current_id = line[1:].split()[0].rstrip()
+                    current_len = 0
+                else:
+                    current_len += len(line.rstrip())
+        if current_id is not None:
+            lengths[current_id] = current_len
+    return lengths
+
+
 def summarize_final_partners_dir(
     directory: str | Path,
     pattern: str = f"**/*{_FP_SUFFIX}",
     n_bins: int = 10,
+    seq_lengths: dict[str, int] | None = None,
+    max_seq_len: int | None = None,
     logger=None,
 ) -> pd.DataFrame:
     """Compute per-transcript FinalPartners stats for all files under a directory.
@@ -463,6 +485,17 @@ def summarize_final_partners_dir(
         (e.g. ``"*.ScanFold.FinalPartners.txt"``).
     n_bins:
         Passed to ``compute_final_partners_stats``.
+    seq_lengths:
+        Optional ``{seq_id: length}`` mapping (from :func:`seq_lengths_from_fastas`).
+        When provided, files whose row count is less than the expected sequence length
+        are skipped with a warning.  Files with no entry in the mapping are kept.
+    max_seq_len:
+        Optional upper bound on sequence length (nucleotides).  Requires *seq_lengths*
+        to be accurate; if *seq_lengths* is ``None``, the row count of the FinalPartners
+        file is used as a lower-bound proxy (may miss truncated long sequences).
+        Transcripts whose true length exceeds this value are skipped before any
+        computation, so very large transcripts that ScanFold cannot reliably complete
+        are excluded from the summary.
 
     Returns
     -------
@@ -473,15 +506,54 @@ def summarize_final_partners_dir(
     if not files:
         raise FileNotFoundError(f"No files matching '{pattern}' under {directory}")
 
+    if max_seq_len is not None and seq_lengths is None and logger:
+        logger.warning(
+            "max_seq_len is set but no seq_lengths mapping was provided; "
+            "filtering by FinalPartners row count (lower-bound proxy — "
+            "truncated long sequences may not be excluded)"
+        )
+
     records: list[pd.Series] = []
     index: list[str] = []
     for path in files:
         transcript_id = path.name.removesuffix(_FP_SUFFIX)
+
+        # Length-ceiling check: use known length when available, else defer to after load
+        if max_seq_len is not None and seq_lengths is not None:
+            expected = seq_lengths.get(transcript_id)
+            if expected is not None and expected > max_seq_len:
+                if logger:
+                    logger.warning(
+                        f"[skip] sequence too long: {transcript_id}  "
+                        f"length={expected}, max={max_seq_len}"
+                    )
+                continue
+
         df = load_final_partners(path)
         if df.empty:
             if logger:
                 logger.warning(f"[skip] empty FinalPartners: {path}")
             continue
+
+        if seq_lengths is not None:
+            expected = seq_lengths.get(transcript_id)
+            if expected is not None and len(df) < expected:
+                if logger:
+                    logger.warning(
+                        f"[skip] partial FinalPartners: {path}  "
+                        f"rows={len(df)}, expected={expected}"
+                    )
+                continue
+
+        # Proxy check: no seq_lengths but max_seq_len set — use row count as lower bound
+        if max_seq_len is not None and seq_lengths is None and len(df) > max_seq_len:
+            if logger:
+                logger.warning(
+                    f"[skip] sequence too long (proxy): {transcript_id}  "
+                    f"rows={len(df)}, max={max_seq_len}"
+                )
+            continue
+
         records.append(compute_final_partners_stats(df, n_bins=n_bins))
         index.append(transcript_id)
 

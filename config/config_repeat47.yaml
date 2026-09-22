@@ -9,12 +9,15 @@ scanfold_oversized_max_len: 20000  # Sequences longer than this (nt) are routed 
 scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete batches
 
 # FinalPartners Summarization (standalone, outside main DAG)
+# TODO(final documentation): replace these machine-specific result paths with user-configured relative paths.
 final_partners_dirs:
   - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2"
   - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu"
   - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_oversized"
 final_partners_output: "results/gencode.v47.repeat.simple/scanfold_final_partners_stats.tsv"
 final_partners_n_bins: 10
+final_partners_fastas:
+  - "resources/gencode.v47.transcripts.fa"
 
 # Summarization Parameters
 peak_threshold: 1.56  # Score threshold for simple peak counting (rg4_count_peaks)
@@ -23,6 +26,7 @@ threshold_high: 2.0  # Score threshold for high-confidence rG4 peaks
 min_peak_prominence: 0.3  # Minimum peak prominence for peak calling
 min_peak_width: 20  # Minimum peak width in nucleotides
 annotation_file: null  # Optional BED file with feature annotations
+# TODO(final documentation): replace this machine-specific annotation path with a user-configured relative path.
 group_annotation_file: "/mnt/cbib/LNClassifier/paper/results/gencode.v47.common.cdhit.cv/tables/gencode.v47.common.cdhit.cv_binary_class_table.tsv"  # BED file for grouping transcripts
 
 # Visualization Parameters

@@ -8,6 +8,7 @@ concatenated into a single TSV with a 'source_dir' column identifying the origin
 
 Usage (CLI):
     python summarize_scanfold_final_partners.py \\
+        # TODO(final documentation): replace this machine-specific example path with a portable input example.
         --dirs /mnt/cbib/LNClassifier/RNA_ScanFold2.0 \\
                 results/gencode.v47.repeat.simple/scanfold2_gpu \\
         --output results/final_partners_stats.tsv
@@ -27,6 +28,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from workflow.utils.scanfold_lib import (
+    seq_lengths_from_fastas,
     summarize_final_partners_dir,
     summarize_final_partners_tarballs,
 )
@@ -50,7 +52,12 @@ def _has_tarballs(directory: Path) -> bool:
 
 
 def process_directory(
-    directory: Path, n_bins: int, threads: int, logger: logging.Logger
+    directory: Path,
+    n_bins: int,
+    threads: int,
+    logger: logging.Logger,
+    seq_lengths: dict | None = None,
+    max_seq_len: int | None = None,
 ) -> pd.DataFrame:
     """Summarize one directory, auto-detecting tarballs vs. flat files."""
     directory = Path(directory)
@@ -66,7 +73,13 @@ def process_directory(
         df = df.drop(columns="tarball", errors="ignore")
     else:
         logger.info(f"[files]   {directory}")
-        df = summarize_final_partners_dir(directory, n_bins=n_bins, logger=logger)
+        df = summarize_final_partners_dir(
+            directory,
+            n_bins=n_bins,
+            seq_lengths=seq_lengths,
+            max_seq_len=max_seq_len,
+            logger=logger,
+        )
 
     logger.info(f"          {len(df):,} transcripts")
     df.insert(0, "source_dir", str(directory))
@@ -78,13 +91,27 @@ def run(
     output: str,
     n_bins: int = 10,
     threads: int = 1,
+    fastas: list[str] | None = None,
+    max_seq_len: int | None = None,
     log_file: str | None = None,
 ) -> None:
     logger = setup_logging(log_file)
 
+    seq_lengths: dict | None = None
+    if fastas:
+        logger.info(f"Building sequence length index from {len(fastas)} FASTA(s)...")
+        seq_lengths = seq_lengths_from_fastas(fastas)
+        logger.info(f"  {len(seq_lengths):,} sequences indexed")
+    if max_seq_len is not None:
+        logger.info(f"Excluding sequences longer than {max_seq_len:,} nt")
+
     frames = []
     for d in dirs:
-        frames.append(process_directory(Path(d), n_bins, threads, logger))
+        frames.append(
+            process_directory(
+                Path(d), n_bins, threads, logger, seq_lengths, max_seq_len
+            )
+        )
 
     result = pd.concat(frames)
     logger.info(f"Total: {len(result):,} transcripts from {len(dirs)} director(y/ies)")
@@ -122,6 +149,21 @@ def parse_args(args=None):
         default=1,
         help="Parallel workers for tarball processing.",
     )
+    p.add_argument(
+        "--fastas",
+        nargs="*",
+        metavar="FA",
+        default=[],
+        help="FASTA files to build a sequence-length index for completeness validation.",
+    )
+    p.add_argument(
+        "--max-seq-len",
+        type=int,
+        default=None,
+        dest="max_seq_len",
+        metavar="N",
+        help="Exclude transcripts longer than N nucleotides (requires --fastas for accuracy).",
+    )
     p.add_argument("--log", help="Log file path.")
     return p.parse_args(args)
 
@@ -130,9 +172,11 @@ def main():
     if "snakemake" in globals():
         smk = globals()["snakemake"]
         args = argparse.Namespace(
-            dirs=list(smk.input),
+            dirs=list(smk.input.dirs),
+            fastas=list(smk.input.fastas) if smk.input.fastas else [],
             output=smk.output[0],
             n_bins=getattr(smk.params, "n_bins", 10),
+            max_seq_len=getattr(smk.params, "max_seq_len", None),
             threads=smk.threads,
             log=smk.log[0] if smk.log else None,
         )
@@ -144,6 +188,8 @@ def main():
         args.output,
         n_bins=args.n_bins,
         threads=args.threads,
+        fastas=args.fastas or [],
+        max_seq_len=args.max_seq_len,
         log_file=args.log,
     )
 
