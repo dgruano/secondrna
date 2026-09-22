@@ -5,12 +5,23 @@ prediction tools of secondary and tertiary RNA structures.
 
 ## Run the pipeline
 
-Add each FASTA basename to `samples` in `config/config.yaml`, with the matching
-file under `resources/`, then run:
+Place one or more input FASTA files under `resources/`, using the sample name as
+the basename (for example, `resources/my_sample.fa`). Add the basename to
+`samples` in `config/config.yaml`, then run:
 
 ```bash
 conda activate snakemake
 snakemake --profile profiles/default
+```
+
+The default targets run the generic rG4detector workflow and write results
+under `results/<sample>/`. This includes the detection CSV, merged predictions,
+summary tables, peak counts, and visualization outputs. For a small local check,
+use `--cores` instead of the SLURM profile:
+
+```bash
+conda activate snakemake
+snakemake --cores 4 --config samples=my_sample
 ```
 
 For a one-off sample list without editing the config file, use a temporary
@@ -18,6 +29,14 @@ config override:
 
 ```bash
 snakemake --profile profiles/default --config samples=my_sample
+```
+
+The generic ScanFold rules are available as explicit targets when ScanFold2.0
+and its `scanfold2` conda environment are installed. For example:
+
+```bash
+snakemake --profile profiles/default \
+	results/my_sample/scanfold2/ScanFold_run.log
 ```
 
 ## Dev notes
