@@ -8,9 +8,8 @@ concatenated into a single TSV with a 'source_dir' column identifying the origin
 
 Usage (CLI):
     python summarize_scanfold_final_partners.py \\
-        # TODO(final documentation): replace this machine-specific example path with a portable input example.
-        --dirs /mnt/cbib/LNClassifier/RNA_ScanFold2.0 \\
-                results/gencode.v47.repeat.simple/scanfold2_gpu \\
+    --dirs results/my_sample/scanfold2 \
+        results/my_sample/scanfold2_gpu \
         --output results/final_partners_stats.tsv
 
 Snakemake usage:
