@@ -1,0 +1,10 @@
+{
+  "description": "Local state captured before reproducibility fixes; not proof of source used for historical results.",
+  "upstream_commit": "c5cc73291fa5a1c06bf5b3c8367a396a3238141c",
+  "local_head": "7e474e405b2787336b5e0d4673c9266ebc6d2e91",
+  "sha256": {
+    "ScanFold2.0.py": "84bb71e516293862d83e57d9165a70ed8c8c88a9902cd2ba91887713d5bcd153",
+    "ScanFoldFunctions.py": "e1c76f19697337c59fd2574e742ef0d5f0282eba83b1b8bbc6c5ebdbc835673d",
+    "README.md": "aeedfa9c126c54d1ef9ede611e80be850de77fc096b19368753ccde99b109273"
+  }
+}

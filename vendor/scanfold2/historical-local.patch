@@ -1,0 +1,128 @@
+diff --git a/README.md b/README.md
+index d91adcc..20d8f43 100644
+--- a/README.md
++++ b/README.md
+@@ -80,6 +80,8 @@ All results are saved to a timestamped folder (or custom named folder with `--fo
+ - **`RESULTS_README.md`**: Detailed guide for viewing and interpreting results
+ - **`ScanFold_run.log`**: Complete analysis log
+ 
++For single-sequence FASTA input, the structure files keep the historical `{basename}.no_filter.ct/.dbn`, `{basename}.minus_1.ct/.dbn`, and `{basename}.minus_2.ct/.dbn` names. For multi-sequence FASTA input, those per-sequence files are written as `{basename}.{record_name}.no_filter.*`, `{basename}.{record_name}.minus_1.*`, and `{basename}.{record_name}.minus_2.*` so records do not overwrite each other.
++
+ ## Examples
+ 
+ ### Basic RNA structure scanning
+diff --git a/ScanFold2.0.py b/ScanFold2.0.py
+index 68488ea..638b666 100644
+--- a/ScanFold2.0.py
++++ b/ScanFold2.0.py
+@@ -26,6 +26,7 @@ from datetime import datetime
+ import os
+ import sys
+ import json
++from itertools import islice, tee
+ 
+ ### Arguments
+ parser = argparse.ArgumentParser()
+@@ -121,11 +122,18 @@ else:
+ 
+ ### Start main loop
+ with open(myfasta, 'r') as forward_fasta:
+-    for cur_record in SeqIO.parse(forward_fasta, "fasta"):
++    record_probe, records = tee(SeqIO.parse(forward_fasta, "fasta"))
++    multi_record_input = sum(1 for _ in islice(record_probe, 2)) > 1
++
++    for cur_record in records:
+         df = pd.DataFrame(columns = ["Start", "End", "Temperature", "NativeMFE",
+             "Z-score", "p-value", "ED", "Sequeunce", "Structure", "centroid"])
+         read_name = cur_record.name
+         name = read_name
++        structure_basename = basename if not multi_record_input else f"{basename}.{read_name}"
++        no_filter_base = f"{structure_basename}.no_filter"
++        minus_1_base = f"{structure_basename}.minus_1"
++        minus_2_base = f"{structure_basename}.minus_2"
+         ### Create output files with absolute paths
+         output = str(read_name+"."+os.path.basename(myfasta)+".ScanFold.")
+         outname = str(read_name+".win_"+str(window_size)+".stp_"+str(step_size)+".csv")
+@@ -536,15 +544,15 @@ with open(myfasta, 'r') as forward_fasta:
+         log_win.close()
+ 
+         strand = 1  # 1 for forward strand, consistent with ScanFoldFold.py
+-        write_bp(best_bps, get_output_path(basename+cur_record.name+".ALL.bp"), start_coordinate, name, minz)
+-        write_ct(final_partners, get_output_path(str(basename)+".no_filter.ct"), float(10), strand, name, start_coordinate)
+-        write_ct(final_partners, get_output_path(str(basename)+".minus_1.ct"), float(-1), strand, name, start_coordinate)
+-        write_ct(final_partners, get_output_path(str(basename)+".minus_2.ct"), float(-2), strand, name, start_coordinate)
++        write_bp(best_bps, get_output_path(structure_basename+".ALL.bp"), start_coordinate, name, minz)
++        write_ct(final_partners, get_output_path(no_filter_base+".ct"), float(10), strand, name, start_coordinate)
++        write_ct(final_partners, get_output_path(minus_1_base+".ct"), float(-1), strand, name, start_coordinate)
++        write_ct(final_partners, get_output_path(minus_2_base+".ct"), float(-2), strand, name, start_coordinate)
+         # makedbn expects base filename without extension and adds .ct/.dbn itself
+         # We need to use the full path without extension
+-        makedbn(os.path.join(output_folder, str(basename)+".no_filter"), "NoFilter")
+-        makedbn(os.path.join(output_folder, str(basename)+".minus_1"), "Zavg_-1")
+-        makedbn(os.path.join(output_folder, str(basename)+".minus_2"), "Zavg_-2")
++        makedbn(get_output_path(no_filter_base), "NoFilter")
++        makedbn(get_output_path(minus_1_base), "Zavg_-1")
++        makedbn(get_output_path(minus_2_base), "Zavg_-2")
+         write_bp(final_partners, get_output_path(outname+".bp"), start_coordinate, name, minz)
+         write_wig_dict(final_partners, get_output_path(outname+".Zavg.wig"), name, step_size, "zscore")
+         write_wig(mfe_list, step_size, cur_record.name, get_output_path(outname+".scan-MFE.wig"))
+@@ -554,10 +562,10 @@ with open(myfasta, 'r') as forward_fasta:
+         elapsed_time = round((time.time() - start_time), 2)
+         log_message(f"ScanFold completed. Elapsed time: {elapsed_time}s")
+ 
+-        # Create results README
+-        results_readme = os.path.join(output_folder, "RESULTS_README.md")
++        # Write per-sequence README
++        results_readme = get_output_path(structure_basename + ".README.md")
+         with open(results_readme, 'w') as readme:
+-            readme.write(f"# ScanFold2.0 Results\n\n")
++            readme.write(f"# ScanFold2.0 Results — {read_name}\n\n")
+             readme.write(f"**Analysis completed:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+             readme.write(f"## Input\n")
+             readme.write(f"- **File:** {os.path.basename(myfasta)}\n")
+@@ -570,26 +578,22 @@ with open(myfasta, 'r') as forward_fasta:
+             readme.write(f"- **Shuffle type:** {shuffle_type} ({'dinucleotide' if shuffle_type == 'di' else 'mononucleotide'})\n")
+             readme.write(f"- **Minimum Z-score:** {minz}\n\n")
+             readme.write(f"## Output Files\n\n")
+-            readme.write(f"### Main Results\n")
+             readme.write(f"- `{outname}` - Tab-delimited scan results with Z-scores\n")
+             readme.write(f"- `{outname}.ScanFold.FinalPartners.txt` - Final base pair partners\n")
+-            readme.write(f"- `{outname}.ScanFold.log` - Detailed analysis log\n\n")
+-            readme.write(f"### Structure Files\n")
+-            readme.write(f"- `{basename}.no_filter.ct` - CT file with all base pairs\n")
+-            readme.write(f"- `{basename}.minus_1.ct` - CT file filtered at Z ≤ -1\n")
+-            readme.write(f"- `{basename}.minus_2.ct` - CT file filtered at Z ≤ -2\n")
+-            readme.write(f"- `{basename}.no_filter.dbn` - Dot-bracket notation (all pairs)\n")
+-            readme.write(f"- `{basename}.minus_1.dbn` - Dot-bracket notation (Z ≤ -1)\n")
+-            readme.write(f"- `{basename}.minus_2.dbn` - Dot-bracket notation (Z ≤ -2)\n\n")
+-            readme.write(f"### Track Files (WIG format)\n")
++            readme.write(f"- `{outname}.ScanFold.log` - Detailed analysis log\n")
++            readme.write(f"- `{no_filter_base}.ct` - CT file with all base pairs\n")
++            readme.write(f"- `{minus_1_base}.ct` - CT file filtered at Z ≤ -1\n")
++            readme.write(f"- `{minus_2_base}.ct` - CT file filtered at Z ≤ -2\n")
++            readme.write(f"- `{no_filter_base}.dbn` - Dot-bracket notation (all pairs)\n")
++            readme.write(f"- `{minus_1_base}.dbn` - Dot-bracket notation (Z ≤ -1)\n")
++            readme.write(f"- `{minus_2_base}.dbn` - Dot-bracket notation (Z ≤ -2)\n")
+             readme.write(f"- `{outname}.scan-zscores.wig` - Z-scores track\n")
+             readme.write(f"- `{outname}.scan-MFE.wig` - MFE values track\n")
+             readme.write(f"- `{outname}.scan-ED.wig` - Ensemble diversity track\n")
+-            readme.write(f"- `{outname}.Zavg.wig` - Average Z-scores for base pairs\n\n")
+-            readme.write(f"### Base Pair Files\n")
+-            readme.write(f"- `{basename}{cur_record.name}.ALL.bp` - All base pairs with coordinates and scores\n")
++            readme.write(f"- `{outname}.Zavg.wig` - Average Z-scores for base pairs\n")
++            readme.write(f"- `{structure_basename}.ALL.bp` - All base pairs with coordinates and scores\n")
+             readme.write(f"- `{outname}.bp` - Filtered base pairs\n")
+-            readme.write(f"These files contain: i-coordinate, j-coordinate, i-nucleotide, j-nucleotide, Z-score, MFE\n")
++            readme.write(f"These files contain: i-coordinate, j-coordinate, i-nucleotide, j-nucleotide, Z-score, MFE\n\n")
+             readme.write(f"## How to View Results\n\n")
+             readme.write(f"### Quick Visualization with IGV\n\n")
+             readme.write(f"**EASIEST METHOD - Use the IGV Session File:**\n\n")
+@@ -608,7 +612,7 @@ with open(myfasta, 'r') as forward_fasta:
+             readme.write(f"- **CT files**: Use with VARNA or other structure visualization software\n")
+             readme.write(f"- **Filtered versions**: minus_1 = Z<-1, minus_2 = Z<-2 (more stringent)\n\n")
+ 
+-        log_message(f"Results README created: RESULTS_README.md")
++        log_message(f"Results README created: {os.path.basename(results_readme)}")
+ 
+         # Create IGV session file
+         igv_session_file = os.path.join(output_folder, "igv_session.json")

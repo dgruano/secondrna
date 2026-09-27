@@ -9,6 +9,7 @@ repos:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+        exclude: ^vendor/scanfold2/.*\.patch$
 
   - repo: https://github.com/psf/black-pre-commit-mirror
     rev: 26.5.1

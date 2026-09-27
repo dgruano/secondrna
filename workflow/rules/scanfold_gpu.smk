@@ -37,6 +37,7 @@ rule scanfold2_run_gpu:
         echo "Available MIG devices:"
         nvidia-smi -L | grep -i mig || echo "No MIG devices found"
 
+        python vendor/scanfold2/install.py --check
         input_fasta="$(realpath {input.fasta})"
         output_folder=$(realpath {params.folder})
         cd software/ScanFold2.0

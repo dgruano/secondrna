@@ -1,0 +1,110 @@
+{
+  "summary": "secondrna/results/gencode.v47/scanfold_final_partners_stats.tsv",
+  "summary_sha256": "2bae164d4e0f066c43146dcdf73eebf3e8bf2de71e607b66177ffc1036ae00cc",
+  "rows": 111652,
+  "duplicate_versioned_ids": 0,
+  "source_counts": {
+    "/mnt/cbib/LNClassifier/RNA_ScanFold2.0": 94841,
+    "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu": 16619,
+    "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2": 192
+  },
+  "scope": "One available output directory per source; up to 3 summary records per directory. Not an exhaustive completeness audit.",
+  "samples": [
+    {
+      "source": "/mnt/cbib/LNClassifier/RNA_ScanFold2.0",
+      "directory": "/mnt/cbib/LNClassifier/RNA_ScanFold2.0/ScanFold_20251104_220506",
+      "final_partners_files": 4879,
+      "no_filter_ct_files": 4879,
+      "run_log_sha256": "db633f84fbd2ec44f13b6b264af7fcc263662f910c395ab734251d44d54f0234",
+      "log_header": "============================================================\nScanFold2.0 Run Log\n============================================================\nDate/Time: 2025-11-04 22:05:06\nInput file: /scratch/group/p.bio240367.000/skm6640/RNA-structure.FR/gencode.v48.lncRNA.transcripts.part-1.fa\nOutput folder: /scratch/group/p.bio240367.000/skm6640/RNA-structure.FR/ScanFold_20251104_220506\n\nParameters:\n  Temperature: 37\u00b0C\n  Window size: 120 nt\n  Step size: 1 nt\n  Shuffle type: mono\n  Python version: 3.10.18\n  TensorFlow version: 2.15.0\n\n============================================================\n\n[22:05:06] ",
+      "source_hash_in_log": false,
+      "recomputed_records": [
+        {
+          "id": "ENST00000246421.4",
+          "file": "/mnt/cbib/LNClassifier/RNA_ScanFold2.0/ScanFold_20251104_220506/ENST00000246421.4.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "ea34bafc02799f2ec285a61fd4d51ed681070ecad935e4c04692884279bf611d",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000263511.8",
+          "file": "/mnt/cbib/LNClassifier/RNA_ScanFold2.0/ScanFold_20251104_220506/ENST00000263511.8.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "b502c3585c094268f8975075780cf84358e2366627207bb3a1c14f43197409a0",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000289890.7",
+          "file": "/mnt/cbib/LNClassifier/RNA_ScanFold2.0/ScanFold_20251104_220506/ENST00000289890.7.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "900322fcbeddf0b848def6a310f63ec3bc91a0467adba458a2c2c34bf0fcab0c",
+          "columns_compared": 64,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "source": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2",
+      "directory": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2/batch_00002_retry_00001",
+      "final_partners_files": 22,
+      "no_filter_ct_files": 21,
+      "run_log_sha256": "5a16738934fc67d11d73b0b4f3dcc8ef72ca849295ec61ad7ce63cbf23a6c287",
+      "log_header": "============================================================\nScanFold2.0 Run Log\n============================================================\nDate/Time: 2026-06-19 19:51:30\nInput file: /mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold_retry_batches/batch_00002_retry_00001.fa\nOutput folder: /mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2/batch_00002_retry_00001\n\nParameters:\n  Temperature: 37\u00b0C\n  Window size: 120 nt\n  Step size: 1 nt\n  Shuffle type: mono\n  Python version: 3.10.20\n  TensorFlow version: 2.15.1\n\n============================================================\n\n[19:51:30] ",
+      "source_hash_in_log": false,
+      "recomputed_records": [
+        {
+          "id": "ENST00000415904.1",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2/batch_00002_retry_00001/ENST00000415904.1.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "f56cdfdc030f1986c4ad28db4b4e18de8565d1ef3ab8729b46e4dd87a987bd9e",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000415947.1",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2/batch_00002_retry_00001/ENST00000415947.1.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "dcebaa69db8305498ef04be7206079b19bd1ff79e080c601518973c78d14c12c",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000418081.5",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2/batch_00002_retry_00001/ENST00000418081.5.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "539be3a232ca2a14c47a4c6955c0212fab395a791a0e8d9160c481a5f098a47e",
+          "columns_compared": 64,
+          "matches": true
+        }
+      ]
+    },
+    {
+      "source": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu",
+      "directory": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu/batch_00000",
+      "final_partners_files": 1000,
+      "no_filter_ct_files": 1000,
+      "run_log_sha256": "5aa495cf174365dd4893779e92b0d0872610ca6c842407b8563257ecabbb65ce",
+      "log_header": "============================================================\nScanFold2.0 Run Log\n============================================================\nDate/Time: 2026-06-09 11:45:13\nInput file: /mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold_batches/batch_00000.fa\nOutput folder: /mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu/batch_00000\n\nParameters:\n  Temperature: 37\u00b0C\n  Window size: 120 nt\n  Step size: 1 nt\n  Shuffle type: mono\n  Python version: 3.10.20\n  TensorFlow version: 2.15.1\n\n============================================================\n\n[11:45:13] ",
+      "source_hash_in_log": false,
+      "recomputed_records": [
+        {
+          "id": "ENST00000003912.8",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu/batch_00000/ENST00000003912.8.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "183217d251fc92fde0952c88e483ec6ce405f7d6936708efbdb6698611c98578",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000167825.5",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu/batch_00000/ENST00000167825.5.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "8a60cdb0832c0bc88a150a4ee696ce0418e10cfec44cdb748557665b2e000f05",
+          "columns_compared": 64,
+          "matches": true
+        },
+        {
+          "id": "ENST00000235878.5",
+          "file": "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu/batch_00000/ENST00000235878.5.win_120.stp_1.csv.ScanFold.FinalPartners.txt",
+          "sha256": "e55264463dccc8ed9e4f20d328738d4af40dbb305153c34219131b5ca3246cdb",
+          "columns_compared": 64,
+          "matches": true
+        }
+      ]
+    }
+  ]
+}

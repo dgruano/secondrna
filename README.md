@@ -39,6 +39,22 @@ snakemake --profile profiles/default \
 	results/my_sample/scanfold2/ScanFold_run.log
 ```
 
+## Reproducible ScanFold2 dependency
+
+ScanFold runs require upstream commit
+`c5cc73291fa5a1c06bf5b3c8367a396a3238141c` plus the tracked
+[`vendor/scanfold2/multifasta.patch`](vendor/scanfold2/multifasta.patch).
+The patch prevents output overwrites when processing multi-record FASTA files.
+Installation pins the upstream revision and applies the patch; execution checks
+source and model hashes, including pre-existing installations. FASTA IDs must be
+unique and safe as filenames.
+
+See [installation, output naming and tests](vendor/scanfold2/README.md) and
+[historical provenance and validation](vendor/scanfold2/PROVENANCE.md). The
+historical summary combines multiple result sources whose exact source revisions
+are not fully established; the pinned release is the supported version for new
+runs.
+
 ## Dev notes
 After checking different batch sizes, I think that:
 - Running time scales O(n), 20 min / 1000 seqs

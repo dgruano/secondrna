@@ -2,6 +2,10 @@ import os
 
 
 rule scanfold2_install:
+    input:
+        installer="vendor/scanfold2/install.py",
+        patch="vendor/scanfold2/multifasta.patch",
+        lock="vendor/scanfold2/source-lock.json",
     output:
         "software/ScanFold2.0/installed.txt",
     log:
@@ -10,12 +14,8 @@ rule scanfold2_install:
     shell:
         """
         {{
+            python {input.installer:q}
             cd software
-            if [ -d "ScanFold2.0/.git" ]; then
-                echo "ScanFold2.0 repo already exists, skipping clone"
-            else
-                git clone https://github.com/moss-lab/ScanFold2.0.git
-            fi
             if conda env create -f ScanFold2.0/environment.yml; then
                 echo "Conda environment created successfully"
             else
@@ -73,6 +73,7 @@ rule scanfold2_run:
     shell:
         """
         {{
+        python vendor/scanfold2/install.py --check
         input_fasta="$(realpath {input.fasta})"
         output_folder=$(realpath {params.folder})
         cd software/ScanFold2.0
