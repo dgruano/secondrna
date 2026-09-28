@@ -1,0 +1,36 @@
+# Reproducible release defaults: GENCODE v47.
+annotation_file: null
+group_annotation_file: null
+final_partners_dirs: []
+final_partners_output: "results/gencode.v47/scanfold_final_partners_stats.tsv"
+final_partners_n_bins: 10
+
+samples:
+  - "gencode.v47"
+
+# Keep rG4detector and ScanFold batching independent. Set scanfold_batch_size
+# to 1 for one ScanFold job per sequence, including very large job arrays.
+batch_size: 1000
+scanfold_batch_size: 1000
+scanfold_oversized_max_len: 20000
+scanfold_retry_subbatch_size: 100
+
+peak_threshold: 1.56
+threshold_low: 1.0
+threshold_high: 2.0
+min_peak_prominence: 0.3
+min_peak_width: 20
+viz_output_dir: "results/{sample}/viz"
+viz_plots: "distributions ranking details comparison"
+viz_format: "both"
+viz_top_n: 20
+viz_metric: "top_peak_score"
+viz_dpi: 300
+viz_figsize: "10x6"
+viz_class_col: null
+viz_transcript_detail: null
+viz_filter: null
+
+profile: "profiles/default"
+cores: 4
+max_jobs: 100

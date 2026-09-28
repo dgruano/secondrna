@@ -2,6 +2,7 @@
 BATCH_SIZE = config.get(
     "batch_size", 1000
 )  # 50 for testing, 1000 for production benchmarking
+SCANFOLD_BATCH_SIZE = config.get("scanfold_batch_size", BATCH_SIZE)
 
 
 def get_num_batches(input_fasta):
@@ -73,35 +74,43 @@ Creates batch FASTA files and manifest with sequence ID mapping.
         """
 
 
+rule scanfold_filter_fasta:
+    input:
+        "resources/{sample}.fa",
+    output:
+        fasta="results/{sample}/scanfold_filtered.fa",
+        excluded="results/{sample}/scanfold_excluded.tsv",
+    conda:
+        "../envs/fasta.yaml"
+    params:
+        max_len=config.get("scanfold_oversized_max_len", 20_000),
+    script:
+        "../scripts/filter_scanfold_fasta.py"
+
+
 checkpoint scanfold_split_fasta_batches:
     input:
-        fasta="resources/{sample}.fa",
+        fasta="results/{sample}/scanfold_filtered.fa",
     output:
         marker="results/{sample}/.scanfold_batches_created",
         manifest="results/{sample}/scanfold_batches/batch_manifest.txt",
         batches=directory("results/{sample}/scanfold_batches/"),
-        oversized_manifest="results/{sample}/scanfold_oversized_batches/batch_manifest.txt",
-        oversized_batches=directory("results/{sample}/scanfold_oversized_batches/"),
-        skip_tsv="results/{sample}/scanfold_oversized_skip.tsv",
     log:
         "logs/{sample}/scanfold_split_fasta_batches.log",
     benchmark:
         "benchmarks/{sample}/scanfold_split_fasta_batches.tsv"
     conda:
-        "../envs/rg4detector.yaml"
+        "../envs/fasta.yaml"
     resources:
         runtime=10,
         mem_mb=2048,
         cpus_per_task=1,
     params:
-        batch_size=BATCH_SIZE,
-        max_seq_len=config.get("scanfold_oversized_max_len", 20_000),
+        batch_size=SCANFOLD_BATCH_SIZE,
     shell:
         """
         {{
-            python workflow/scripts/split_fasta.py {input.fasta} {output.batches} {params.batch_size} \
-                --max-seq-len {params.max_seq_len} \
-                --oversized-dir {output.oversized_batches}
+            python workflow/scripts/split_fasta.py {input.fasta} {output.batches} {params.batch_size}
             touch {output.marker}
         }} 2>&1 | tee {log}
         """

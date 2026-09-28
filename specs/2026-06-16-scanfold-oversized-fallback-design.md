@@ -2,6 +2,19 @@
 
 **Date:** 2026-06-16
 **Branch:** feat/scanfold
+
+## Release follow-up: filter before ScanFold
+
+The release should filter sequences by length before scheduling ScanFold jobs.
+Sequences longer than `scanfold_oversized_max_len` should be excluded from the
+ScanFold input manifest and recorded in a deterministic TSV containing their
+IDs, lengths, source FASTA checksum, and threshold. The ScanFold rule consumes
+the filtered FASTA, so excluded records cannot reach ScanFold through a direct
+whole-FASTA target.
+
+Batching remains a user choice through `scanfold_batch_size`: larger batches
+reduce scheduler load, while `1` permits one job per sequence for very large
+job arrays. The rG4detector `batch_size` remains independent.
 **Status:** Approved
 
 ---

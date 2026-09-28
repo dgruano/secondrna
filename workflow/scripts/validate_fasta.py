@@ -6,6 +6,7 @@ Exit codes: 0 = valid, 1 = invalid format, 2 = file not found
 
 import re
 import sys
+from collections import Counter
 
 input_file = snakemake.input[0]
 marker_file = snakemake.output.marker
@@ -28,16 +29,17 @@ def validate_fasta(filepath):
         return False, "No FASTA headers found (lines should start with '>')"
 
     current_header = None
+    record_ids = []
     sequence_count = 0
     valid_chars = set("ACGUTNacgutn")  # Try with T too
 
     for i, line in enumerate(lines, 1):
         if line.startswith(">"):
-            if current_header is None or any(c for c in (current_header or "")):
-                current_header = line[1:].strip()
-                sequence_count += 1
+            current_header = line[1:].strip()
             if not current_header:
                 return False, f"Empty header at line {i}"
+            record_ids.append(current_header.split()[0])
+            sequence_count += 1
         else:
             if not line.strip():
                 continue
@@ -47,6 +49,12 @@ def validate_fasta(filepath):
 
     if sequence_count == 0:
         return False, "No sequences found in FASTA file"
+
+    duplicate_ids = [
+        record_id for record_id, count in Counter(record_ids).items() if count > 1
+    ]
+    if duplicate_ids:
+        return False, f"Duplicate FASTA record ID(s): {', '.join(duplicate_ids)}"
 
     return True, f"Valid FASTA with {sequence_count} sequences"
 

@@ -50,7 +50,7 @@ rule strip_gencode_headers:
 rule scanfold2_run:
     input:
         flag="software/ScanFold2.0/installed.txt",
-        fasta="resources/{sample}.fa",
+        fasta="results/{sample}/scanfold_filtered.fa",
     output:
         out="results/{sample}/scanfold2/ScanFold_run.log",
         # TODO: Change to sentinel file
@@ -109,10 +109,29 @@ def get_scanfold_batches(wc):
     )
 
 
+def get_scanfold_batch_fasta(wc):
+    """Make an individual ScanFold batch depend on the split checkpoint."""
+    checkpoints.scanfold_split_fasta_batches.get(sample=wc.sample)
+    return f"results/{wc.sample}/scanfold_batches/batch_{wc.batch_id}.fa"
+
+
+rule scanfold2_run_all:
+    """Run ScanFold for every batch produced by the length-aware splitter."""
+    input:
+        get_scanfold_batches,
+        excluded="results/{sample}/scanfold_excluded.tsv",
+    output:
+        "results/{sample}/scanfold2/.complete",
+    log:
+        "logs/{sample}/scanfold2/all.log",
+    shell:
+        "touch {output}"
+
+
 use rule scanfold2_run as scanfold2_run_batch with:
     input:
         flag="software/ScanFold2.0/installed.txt",
-        fasta="results/{sample}/scanfold_batches/batch_{batch_id}.fa",
+        fasta=get_scanfold_batch_fasta,
     output:
         out="results/{sample}/scanfold2/batch_{batch_id}/ScanFold_run.log",
         # TODO: Change to sentinel file

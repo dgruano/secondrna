@@ -23,7 +23,7 @@ VIZ_TOP_N = config.get("viz_top_n", 20)
 VIZ_METRIC = config.get("viz_metric", "top_peak_score")
 VIZ_DPI = config.get("viz_dpi", 300)
 VIZ_FIGSIZE = config.get("viz_figsize", "10x6")
-VIZ_CLASS_COL = config.get("viz_class_col", "real")
+VIZ_CLASS_COL = config.get("viz_class_col", None)
 VIZ_TRANSCRIPT_DETAIL = config.get("viz_transcript_detail", None)
 VIZ_FILTER = config.get("viz_filter", None)
 
@@ -204,8 +204,11 @@ Parameters (configurable via --config):
                 --metric {params.metric} \
                 --dpi {params.dpi} \
                 --figsize {params.figsize} \
-                --class-col {params.class_col} \
                 --plots {params.plots}"
+
+            if [ ! -z "{params.class_col}" ] && [ "{params.class_col}" != "None" ]; then
+                CMD="$CMD --class-col {params.class_col}"
+            fi
 
             if [ ! -z "{params.transcript_detail}" ] && [ "{params.transcript_detail}" != "None" ]; then
                 CMD="$CMD --transcript-detail {params.transcript_detail}"

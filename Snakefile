@@ -6,7 +6,7 @@ Integrates rG4detector for G-quadruplex prediction on secondary and tertiary str
 from pathlib import Path
 
 
-configfile: "config/config.yaml"
+configfile: "config/config.default.yaml"
 
 
 configured_samples = config["samples"]
@@ -26,16 +26,35 @@ include: "workflow/rules/g4Discovery.smk"
 include: "workflow/rules/scanfold_core.smk"
 
 
+rg4detector_targets = [
+    expand(rules.rg4_detect.output, sample=samples),
+    expand(rules.merge_rg4_detections.output.csv, sample=samples),
+    expand(rules.summarize_rg4_detection.output.summary_csv, sample=samples),
+    expand(rules.add_group_annotations.output.annotated_csv, sample=samples),
+    expand(rules.visualize_rg4_summary.output.viz_marker, sample=samples),
+    expand(rules.rg4_count_peaks.output.counts, sample=samples),
+    expand(rules.rg4_count_peaks.output.stats, sample=samples),
+]
+scanfold2_targets = expand(rules.scanfold2_run_all.output, sample=samples)
+
 rule all:
     input:
-        expand(rules.rg4_detect.output, sample=samples),
+        rg4detector_targets,
+        scanfold2_targets,
+    default_target: True
+
+
+rule all_rg4detector:
+    input:
+        rg4detector_targets,
+
+rule rg4detector_predictions:
+    input:
         expand(rules.merge_rg4_predictions.output.csv, sample=samples),
-        expand(rules.merge_rg4_detections.output.csv, sample=samples),
-        expand(rules.summarize_rg4_detection.output.summary_csv, sample=samples),
-        expand(rules.add_group_annotations.output.annotated_csv, sample=samples),
-        expand(rules.visualize_rg4_summary.output.viz_marker, sample=samples),
-        expand(rules.rg4_count_peaks.output.counts, sample=samples),
-        expand(rules.rg4_count_peaks.output.stats, sample=samples),
+
+rule all_scanfold2:
+    input:
+        scanfold2_targets,
 
 
 # Ensure output directory exists

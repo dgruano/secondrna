@@ -6,37 +6,42 @@ prediction tools of secondary and tertiary RNA structures.
 ## Run the pipeline
 
 Place one or more input FASTA files under `resources/`, using the sample name as
-the basename (for example, `resources/my_sample.fa`). Add the basename to
-`samples` in `config/config.yaml`, then run:
+the basename (for example, `resources/gencode.v47.fa`). The release defaults
+are in `config/config.default.yaml`; copy that file for local overrides and set
+the `samples` list, then run:
 
 ```bash
 conda activate snakemake
-snakemake --profile profiles/default
+snakemake --cores 4 --use-conda
 ```
 
-The default targets run the generic rG4detector workflow and write results
-under `results/<sample>/`. This includes the detection CSV, merged predictions,
-summary tables, peak counts, and visualization outputs. For a small local check,
-use `--cores` instead of the SLURM profile:
+The default target runs rG4detector and ScanFold2 under `results/<sample>/`.
+Before ScanFold, records longer than `scanfold_oversized_max_len` are removed
+from its input and listed in `results/<sample>/scanfold_excluded.tsv`, with the
+source FASTA checksum and threshold. Those records have no ScanFold predictions.
+For a small local check:
 
 ```bash
 conda activate snakemake
-snakemake --cores 4 --config samples=my_sample
+snakemake --cores 4 --use-conda --config samples=my_sample
 ```
+
+Set `scanfold_batch_size` independently from the rG4detector `batch_size`.
+For example, `--config scanfold_batch_size=1` schedules one ScanFold sequence
+per job; larger values reduce scheduler overhead.
 
 For a one-off sample list without editing the config file, use a temporary
 config override:
 
 ```bash
-snakemake --profile profiles/default --config samples=my_sample
+snakemake --cores 4 --use-conda --config samples=my_sample
 ```
 
-The generic ScanFold rules are available as explicit targets when ScanFold2.0
-and its `scanfold2` conda environment are installed. For example:
+The ScanFold rules are also available as explicit targets. For example:
 
 ```bash
-snakemake --profile profiles/default \
-	results/my_sample/scanfold2/ScanFold_run.log
+snakemake --cores 4 --use-conda \
+	results/my_sample/scanfold2/.complete
 ```
 
 ## Reproducible ScanFold2 dependency
