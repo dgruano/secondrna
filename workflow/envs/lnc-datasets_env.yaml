@@ -1,0 +1,24 @@
+name: lnc-datasets
+channels:
+  - conda-forge
+dependencies:
+  - biopython
+  - scipy
+  - numpy
+  - pandas
+  - scikit-learn
+  - jupyter
+  - python=3.12
+  - matplotlib
+  - seaborn
+  - upsetplot
+  - umap-learn
+  - plotly
+  - shap
+  - pywaffle
+  - jupyter-resource-usage
+  - pre-commit
+  - nbstripout
+  - hdbscan
+  - python-kaleido
+  - fastparquet
