@@ -83,7 +83,7 @@ rule scanfold_filter_fasta:
     conda:
         "../envs/fasta.yaml"
     params:
-        max_len=config.get("scanfold_oversized_max_len", 20_000),
+        max_len=config.get("scanfold_max_len", 20_000),
     script:
         "../scripts/filter_scanfold_fasta.py"
 

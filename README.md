@@ -56,7 +56,7 @@ snakemake --executor local --cores 4 --use-conda --configfile config/local.yaml
 | `samples` | `[gencode.v47]` | FASTA basenames under `resources/`. |
 | `batch_size` | `1000` | Sequences per rG4detector batch. |
 | `scanfold_batch_size` | `1000` | Sequences per ScanFold batch, independent of `batch_size`. |
-| `scanfold_oversized_max_len` | `20000` | Maximum sequence length sent to ScanFold, in nucleotides; longer records are reported in `scanfold_excluded.tsv`. |
+| `scanfold_max_len` | `20000` | Maximum sequence length sent to ScanFold, in nucleotides; longer records are reported in `scanfold_excluded.tsv`. |
 | `scanfold_retry_subbatch_size` | `100` | Reserved retry batch size; unused by the included Snakefile. |
 | `peak_threshold` | `1.56` | Minimum rG4 score used for `peak_counts.csv` and `peak_stats.tsv`. |
 | `threshold_low`, `threshold_high` | `1.0`, `2.0` | Score cutoffs for candidate and high-confidence rG4 peaks in `rg4_summary.csv`. |

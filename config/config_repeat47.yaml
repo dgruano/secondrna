@@ -4,8 +4,8 @@
 # Batch Processing Parameters
 batch_size: 1000  # Sequences per batch for rG4detector
 
-# ScanFold Batch Parameters
-scanfold_oversized_max_len: 20000  # Sequences longer than this (nt) are routed to the oversized pipeline at split time
+# ScanFold length filter
+scanfold_max_len: 20000  # Longer sequences are excluded from ScanFold and listed in scanfold_excluded.tsv
 scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete batches
 
 # FinalPartners Summarization (standalone, outside main DAG)
@@ -13,7 +13,6 @@ scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete bat
 final_partners_dirs:
   - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2"
   - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_gpu"
-  - "/mnt/cbib/LNClassifier/paper/secondrna/results/gencode.v47.repeat.simple/scanfold2_oversized"
 final_partners_output: "results/gencode.v47.repeat.simple/scanfold_final_partners_stats.tsv"
 final_partners_n_bins: 10
 final_partners_fastas:
