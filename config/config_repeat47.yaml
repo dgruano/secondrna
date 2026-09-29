@@ -6,7 +6,6 @@ batch_size: 1000  # Sequences per batch for rG4detector
 
 # ScanFold length filter
 scanfold_max_len: 20000  # Longer sequences are excluded from ScanFold and listed in scanfold_excluded.tsv
-scanfold_retry_subbatch_size: 100  # Sub-batch size when retrying incomplete batches
 
 # FinalPartners Summarization (standalone, outside main DAG)
 # TODO(final documentation): replace these machine-specific result paths with user-configured relative paths.

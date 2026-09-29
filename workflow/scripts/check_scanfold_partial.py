@@ -17,15 +17,12 @@ Usage (from Snakemake checkpoint):
         --sample gencode.v47.repeat.simple \\
         --subbatch-size 100 \\
         --write-fasta \\
-        --out-dir results/gencode.v47.repeat.simple/scanfold_retry_batches \\
-        --max-seq-len 20000 \\
-        --oversized-dir results/gencode.v47.repeat.simple/scanfold_oversized_batches
+        --out-dir results/gencode.v47.repeat.simple/scanfold_retry_batches
 """
 
 import argparse
 import hashlib
 import math
-import re
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -51,63 +48,6 @@ def extract_sequences(source_fasta: Path, seq_ids: set[str], out_path: Path) -> 
                 capture = line[1:].strip() in seq_ids
             if capture:
                 fout.write(line)
-
-
-def measure_fasta_lengths(source_fasta: Path) -> dict[str, int]:
-    """Return {seq_id: length} for all sequences in source_fasta (single pass)."""
-    lengths: dict[str, int] = {}
-    current_id: str | None = None
-    current_len = 0
-    with open(source_fasta) as f:
-        for line in f:
-            if line.startswith(">"):
-                if current_id is not None:
-                    lengths[current_id] = current_len
-                current_id = line[1:].strip()
-                current_len = 0
-            else:
-                current_len += len(line.strip())
-    if current_id is not None:
-        lengths[current_id] = current_len
-    return lengths
-
-
-def _sanitise_batch_id(s: str) -> str:
-    """Replace filename-unsafe characters with underscores."""
-    return re.sub(r"[/|\\:*?\"<>]", "_", s)
-
-
-def write_oversized_batches(
-    source_fasta: Path,
-    oversized_ids: list[str],
-    oversized_dir: Path,
-    batch_id: str,
-    seq_lengths: dict[str, int],
-    skip_tsv_path: Path,
-) -> list[tuple[str, list[str], Path]]:
-    """Write one single-sequence FASTA per oversized sequence.
-
-    Files are named: batch_{batch_id}_oversized_{i:05d}.fa
-    Appends rows to skip_tsv_path and writes batch_manifest.txt.
-    Returns list of (oversized_batch_id, [seq_id], path).
-    """
-    oversized_dir.mkdir(parents=True, exist_ok=True)
-    results = []
-    safe_batch_id = _sanitise_batch_id(batch_id)
-
-    skip_tsv_exists = skip_tsv_path.exists()
-    with open(skip_tsv_path, "a") as skip_f:
-        if not skip_tsv_exists:
-            skip_f.write("seq_id\tseq_len\tsource_batch\n")
-        for i, seq_id in enumerate(oversized_ids):
-            oversized_batch_id = f"{safe_batch_id}_oversized_{i:05d}"
-            out_path = oversized_dir / f"batch_{oversized_batch_id}.fa"
-            extract_sequences(source_fasta, {seq_id}, out_path)
-            seq_len = seq_lengths.get(seq_id, 0)
-            skip_f.write(f"{seq_id}\t{seq_len}\t{batch_id}\n")
-            results.append((oversized_batch_id, [seq_id], out_path))
-
-    return results
 
 
 # ---------------------------------------------------------------------------
@@ -175,7 +115,7 @@ def check_batch(batch_id: str, batches_dir: Path, gpu_dir: Path) -> dict:
 
     all_ids = get_fasta_ids(fasta)
 
-    # Collect completions from the original dir and any retry/oversized sub-dirs.
+    # Collect completions from the original dir and any retry sub-dirs.
     completed = (
         get_completed_ids(result_dir, batch_id) if result_dir.exists() else set()
     )
@@ -287,32 +227,12 @@ def main():
         help="Split pending sequences into sub-batches of N each "
         "(requires --write-fasta; omit to write one file per batch)",
     )
-    parser.add_argument(
-        "--max-seq-len",
-        type=int,
-        default=None,
-        metavar="N",
-        help="Sequences longer than N nt are written to --oversized-dir "
-        "instead of the normal sub-batch output. Default: no length filtering.",
-    )
-    parser.add_argument(
-        "--oversized-dir",
-        type=Path,
-        default=None,
-        metavar="DIR",
-        help="Directory for single-sequence FASTAs of oversized sequences. "
-        "Required when --max-seq-len is set.",
-    )
     args = parser.parse_args()
 
     if args.subbatch_size is not None and not args.write_fasta:
         parser.error("--subbatch-size requires --write-fasta")
     if args.subbatch_size is not None and args.subbatch_size <= 0:
         parser.error("--subbatch-size must be a positive integer")
-    if args.max_seq_len is not None and args.oversized_dir is None:
-        parser.error("--max-seq-len requires --oversized-dir")
-    if args.oversized_dir is not None and args.max_seq_len is None:
-        parser.error("--oversized-dir requires --max-seq-len")
 
     sample_dir = args.results_dir / args.sample
     batches_dir = sample_dir / "scanfold_batches"
@@ -344,16 +264,7 @@ def main():
 
     # --- Check each batch and collect incomplete ones ---
     manifest_entries: list[tuple[str, list[str]]] = []  # for retry manifest
-    oversized_entries: list[tuple[str, list[str]]] = []  # for oversized manifest
     total_pending = 0
-
-    # Path for the oversized skip TSV lives one level above --oversized-dir
-    skip_tsv_path: Path | None = None
-    if args.oversized_dir is not None:
-        skip_tsv_path = args.oversized_dir.parent / "scanfold_oversized_skip.tsv"
-        # Remove any stale skip TSV from a previous run so rows don't accumulate
-        if skip_tsv_path.exists():
-            skip_tsv_path.unlink()
 
     for batch_id in batch_ids:
         result = check_batch(batch_id, batches_dir, gpu_dir)
@@ -373,73 +284,37 @@ def main():
                 print(f"[batch_{batch_id}] complete ({total}/{total})")
             continue
 
-        # --- Length-based routing ---
-        normal_ids = pending_ids
-        oversized_ids: list[str] = []
-        seq_lengths: dict[str, int] = {}
-
-        if args.max_seq_len is not None:
-            source_fasta = result["fasta"]
-            seq_lengths = measure_fasta_lengths(source_fasta)
-            normal_ids = [
-                s for s in pending_ids if seq_lengths.get(s, 0) <= args.max_seq_len
-            ]
-            oversized_ids = [
-                s for s in pending_ids if seq_lengths.get(s, 0) > args.max_seq_len
-            ]
-
-        total_pending += len(normal_ids) + len(oversized_ids)
+        total_pending += len(pending_ids)
         print(f"[batch_{batch_id}]")
         print(f"  Total sequences   : {total}")
         print(f"  Completed         : {completed}  ({completed / total * 100:.1f}%)")
         print(
             f"  Pending (need run): {pending_count}  ({pending_count / total * 100:.1f}%)"
         )
-        if oversized_ids:
-            print(f"  Oversized (>{args.max_seq_len} nt): {len(oversized_ids)}")
         print()
         print("  Pending sequence IDs:")
-        for seq_id in normal_ids:
+        for seq_id in pending_ids:
             print(f"    {seq_id}")
-        for seq_id in oversized_ids:
-            print(f"    {seq_id}  [OVERSIZED]")
         print()
 
         if args.write_fasta:
             source_fasta = result["fasta"]
 
-            # Write oversized single-sequence FASTAs
-            if oversized_ids and args.oversized_dir is not None:
-                oversized = write_oversized_batches(
-                    source_fasta,
-                    oversized_ids,
-                    args.oversized_dir,
-                    batch_id,
-                    seq_lengths,
-                    skip_tsv_path,
-                )
-                print(f"  Oversized sequences → {args.oversized_dir}:")
-                for ob_id, ob_seqs, ob_path in oversized:
-                    print(f"    {ob_path}  ({len(ob_seqs)} seq)")
-                    oversized_entries.append((ob_id, ob_seqs))
-                print()
-
-            # Write normal retry sub-batches (only non-oversized sequences)
-            if normal_ids:
+            if pending_ids:
                 if args.subbatch_size is None:
                     subbatch_id = f"{batch_id}_retry"
                     out_path = out_dir / f"batch_{subbatch_id}.fa"
                     out_dir.mkdir(parents=True, exist_ok=True)
-                    extract_sequences(source_fasta, set(normal_ids), out_path)
-                    manifest_entries.append((subbatch_id, normal_ids))
-                    print(f"  Wrote {len(normal_ids)} sequences to: {out_path}")
+                    extract_sequences(source_fasta, set(pending_ids), out_path)
+                    manifest_entries.append((subbatch_id, pending_ids))
+                    print(f"  Wrote {len(pending_ids)} sequences to: {out_path}")
                 else:
                     subbatches = write_subbatches(
-                        source_fasta, normal_ids, out_dir, batch_id, args.subbatch_size
+                        source_fasta, pending_ids, out_dir, batch_id, args.subbatch_size
                     )
                     n = len(subbatches)
                     print(
-                        f"  Split {len(normal_ids)} pending sequences into {n} sub-batches "
+                        f"  Split {len(pending_ids)} pending sequences into {n} sub-batches "
                         f"of ≤{args.subbatch_size} each:"
                     )
                     for subbatch_id, seq_ids, path in subbatches:
@@ -454,16 +329,6 @@ def main():
         print(f"Manifest written: {out_dir / 'batch_manifest.txt'}")
         print(f"Total retry sub-batches : {len(manifest_entries)}")
         print(f"Total pending sequences : {total_pending}")
-
-        if args.oversized_dir is not None:
-            args.oversized_dir.mkdir(parents=True, exist_ok=True)
-            write_batch_manifest(args.oversized_dir, oversized_entries)
-            print(
-                f"Oversized manifest written: {args.oversized_dir / 'batch_manifest.txt'}"
-            )
-            print(f"Total oversized batches : {len(oversized_entries)}")
-            if skip_tsv_path is not None:
-                print(f"Skip TSV written: {skip_tsv_path}")
 
     if not args.write_fasta:
         print(f"Total pending sequences across all batches: {total_pending}")

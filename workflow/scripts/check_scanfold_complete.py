@@ -3,8 +3,8 @@
 Validate that every sequence in the original ScanFold batch manifest
 has a corresponding .no_filter.ct output file.
 
-Scans results/{sample}/scanfold2/, results/{sample}/scanfold2_oversized/, and
-results/{sample}/scanfold2_gpu/ (GPU flat output, if present) to find completed
+Scans results/{sample}/scanfold2/ and results/{sample}/scanfold2_gpu/
+(GPU flat output, if present) to find completed
 sequences, then cross-references against the original batch manifest.
 
 Writes a TSV report (seq_id, original_batch_id, status) and exits with
@@ -86,19 +86,16 @@ def get_completed_ids(result_dir: Path, batch_id: str) -> set[str]:
 
 
 def collect_all_completed(sample_dir: Path) -> set[str]:
-    """Walk scanfold2/, scanfold2_oversized/, and scanfold2_gpu/ to collect all completed seq_ids."""
+    """Walk scanfold2/ and scanfold2_gpu/ to collect all completed seq_ids."""
     completed: set[str] = set()
-    for subdir_name in ("scanfold2", "scanfold2_oversized"):
-        result_dir = sample_dir / subdir_name
-        if not result_dir.exists():
-            logging.info("Result directory not found (skipping): %s", result_dir)
-            continue
+    result_dir = sample_dir / "scanfold2"
+    if not result_dir.exists():
+        logging.info("Result directory not found (skipping): %s", result_dir)
+    else:
         for batch_dir in sorted(result_dir.glob("batch_*")):
-            if not batch_dir.is_dir():
-                continue
-            batch_id = batch_dir.name[len("batch_") :]
-            ids = get_completed_ids(batch_dir, batch_id)
-            completed.update(ids)
+            if batch_dir.is_dir():
+                batch_id = batch_dir.name[len("batch_") :]
+                completed.update(get_completed_ids(batch_dir, batch_id))
     # GPU output: flat dir (no batch_* subdirs), parse CT headers directly
     gpu_dir = sample_dir / "scanfold2_gpu"
     if gpu_dir.exists():

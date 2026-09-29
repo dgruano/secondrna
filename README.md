@@ -57,7 +57,6 @@ snakemake --executor local --cores 4 --use-conda --configfile config/local.yaml
 | `batch_size` | `1000` | Sequences per rG4detector batch. |
 | `scanfold_batch_size` | `1000` | Sequences per ScanFold batch, independent of `batch_size`. |
 | `scanfold_max_len` | `20000` | Maximum sequence length sent to ScanFold, in nucleotides; longer records are reported in `scanfold_excluded.tsv`. |
-| `scanfold_retry_subbatch_size` | `100` | Reserved retry batch size; unused by the included Snakefile. |
 | `peak_threshold` | `1.56` | Minimum rG4 score used for `peak_counts.csv` and `peak_stats.tsv`. |
 | `threshold_low`, `threshold_high` | `1.0`, `2.0` | Score cutoffs for candidate and high-confidence rG4 peaks in `rg4_summary.csv`. |
 | `min_peak_prominence`, `min_peak_width` | `0.3`, `20` | Minimum prominence and width (nt) of summarized peaks. |
@@ -99,10 +98,14 @@ visualizations under `viz/`. `scanfold2/.complete` is the workflow completion
 marker for ScanFold batches; it is not a structure result. For ScanFold alone,
 run `snakemake --executor local --cores 4 --use-conda all_scanfold2`.
 
+The standalone `workflow/scripts/check_scanfold_partial.py` tool identifies
+sequences missing from completed ScanFold batches and prepares retry FASTAs.
+Retry jobs are disconnected from the main Snakefile DAG and must be run
+separately.
+
 ## Reproducibility and limits
 
 ScanFold2 is pinned to upstream commit
 `c5cc73291fa5a1c06bf5b3c8367a396a3238141c` plus the tracked
 [`multifasta.patch`](vendor/scanfold2/multifasta.patch). Installation and
-execution check source and model hashes. See its [installation and output guide](vendor/scanfold2/README.md)
-and [historical provenance](vendor/scanfold2/PROVENANCE.md).
+execution check source and model hashes. See its [source and patch provenance](vendor/scanfold2/README.md).
