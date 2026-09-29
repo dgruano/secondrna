@@ -30,7 +30,3 @@ viz_figsize: "10x6"
 viz_class_col: null
 viz_transcript_detail: null
 viz_filter: null
-
-profile: "profiles/default"
-cores: 4
-max_jobs: 100
